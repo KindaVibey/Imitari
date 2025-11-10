@@ -1,5 +1,4 @@
 {
-  "loader": "copycraft:copy_block",
   "parent": "minecraft:block/cube_all",
   "textures": {
     "all": "copycraft:block/copycraftblock"
