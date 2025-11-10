@@ -20,6 +20,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * A custom block that can copy the appearance of other full-cube blocks.
+ * The CopyBlock stores a reference to another block's state in its BlockEntity.
+ */
 public class CopyBlock extends Block implements EntityBlock {
 
     public CopyBlock(Properties properties) {
@@ -28,7 +32,7 @@ public class CopyBlock extends Block implements EntityBlock {
 
     @Override
     public RenderShape getRenderShape(BlockState state) {
-        // Use invisible - we handle rendering in the BlockEntityRenderer
+        // Invisible block; rendering handled by BlockEntityRenderer
         return RenderShape.INVISIBLE;
     }
 
@@ -41,6 +45,7 @@ public class CopyBlock extends Block implements EntityBlock {
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos,
                                  Player player, InteractionHand hand, BlockHitResult hit) {
+
         if (level.isClientSide) {
             return InteractionResult.SUCCESS;
         }
@@ -52,10 +57,9 @@ public class CopyBlock extends Block implements EntityBlock {
 
         ItemStack heldItem = player.getItemInHand(hand);
 
-        // If player is sneaking and has empty hand, clear the copied block
+        // Sneaking with empty hand clears the copied texture
         if (player.isShiftKeyDown() && heldItem.isEmpty()) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
-            level.sendBlockUpdated(pos, state, state, 3);
             player.displayClientMessage(Component.literal("Cleared copied texture"), true);
             return InteractionResult.SUCCESS;
         }
@@ -64,13 +68,20 @@ public class CopyBlock extends Block implements EntityBlock {
         if (heldItem.getItem() instanceof BlockItem blockItem) {
             Block targetBlock = blockItem.getBlock();
 
-            // Don't allow copying the copy block itself
+            // Prevent copying itself
             if (targetBlock instanceof CopyBlock) {
                 player.displayClientMessage(Component.literal("Cannot copy a Copy Block!"), true);
                 return InteractionResult.FAIL;
             }
 
             BlockState targetState = targetBlock.defaultBlockState();
+
+            // Only allow full cube blocks
+            if (!targetState.isCollisionShapeFullBlock(level, pos)) {
+                player.displayClientMessage(Component.literal("Can only copy full block textures!"), true);
+                return InteractionResult.FAIL;
+            }
+
             copyBlockEntity.setCopiedBlock(targetState);
             level.sendBlockUpdated(pos, state, state, 3);
 
@@ -97,6 +108,7 @@ public class CopyBlock extends Block implements EntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
                                                                   BlockEntityType<T> type) {
+        // This block has no ticking logic
         return null;
     }
 }

@@ -37,11 +37,20 @@ public class CopyBlockEntity extends BlockEntity {
     public void load(CompoundTag tag) {
         super.load(tag);
         if (tag.contains("CopiedBlock")) {
-            this.copiedBlock = NbtUtils.readBlockState(
-                    this.level != null ? this.level.holderLookup(Registries.BLOCK) : null,
-                    tag.getCompound("CopiedBlock")
-            );
+            try {
+                this.copiedBlock = NbtUtils.readBlockState(
+                        this.level != null ? this.level.holderLookup(Registries.BLOCK) : null,
+                        tag.getCompound("CopiedBlock")
+                );
+            } catch (Exception e) {
+                this.copiedBlock = Blocks.AIR.defaultBlockState();
+            }
         }
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag) {
+        this.load(tag);
     }
 
     @Override
