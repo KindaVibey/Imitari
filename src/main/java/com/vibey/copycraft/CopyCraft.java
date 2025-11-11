@@ -4,12 +4,10 @@ import com.mojang.logging.LogUtils;
 import com.vibey.copycraft.registry.ModItems;
 import com.vibey.copycraft.registry.ModBlocks;
 import com.vibey.copycraft.registry.ModBlockEntities;
-import com.vibey.copycraft.client.CopyBlockRenderer;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -64,12 +62,6 @@ public class CopyCraft {
             event.enqueueWork(() -> {
                 ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK.get(), RenderType.cutout());
             });
-        }
-
-        @SubscribeEvent
-        public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-            event.registerBlockEntityRenderer(ModBlockEntities.COPY_BLOCK_ENTITY.get(),
-                    CopyBlockRenderer::new);
         }
     }
 }

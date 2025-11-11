@@ -14,8 +14,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.BlockEntityTicker;
-import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
@@ -28,8 +26,8 @@ public class CopyBlock extends Block implements EntityBlock {
 
     @Override
     public RenderShape getRenderShape(BlockState state) {
-        // Invisible block; rendering handled by BlockEntityRenderer
-        return RenderShape.INVISIBLE;
+        // MODEL allows it to be rendered in the world via BakedModel
+        return RenderShape.MODEL;
     }
 
     @Nullable
@@ -94,12 +92,5 @@ public class CopyBlock extends Block implements EntityBlock {
         if (!state.is(newState.getBlock())) {
             super.onRemove(state, level, pos, newState, isMoving);
         }
-    }
-
-    @Nullable
-    @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
-                                                                  BlockEntityType<T> type) {
-        return null;
     }
 }
