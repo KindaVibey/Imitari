@@ -31,7 +31,6 @@ public class CopyCraft {
 
         modEventBus.addListener(this::commonSetup);
 
-        // Register our content
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
         ModBlockEntities.register(modEventBus);
@@ -48,9 +47,6 @@ public class CopyCraft {
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) {
             event.accept(ModItems.COPY_BLOCK);
-            // Add more copy block variants here as you create them:
-            // event.accept(ModItems.COPY_COLUMN);
-            // event.accept(ModItems.COPY_SLOPE);
         }
     }
 
@@ -65,18 +61,13 @@ public class CopyCraft {
         public static void onClientSetup(FMLClientSetupEvent event) {
             LOGGER.info("CopyCraft client setup");
 
-            // Set render type to cutout for transparency support
             event.enqueueWork(() -> {
                 ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK.get(), RenderType.cutout());
-                // Add more as you create them:
-                // ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_COLUMN.get(), RenderType.cutout());
-                // ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_SLOPE.get(), RenderType.cutout());
             });
         }
 
         @SubscribeEvent
         public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-            // This single renderer handles ALL copy block types!
             event.registerBlockEntityRenderer(ModBlockEntities.COPY_BLOCK_ENTITY.get(),
                     CopyBlockRenderer::new);
         }

@@ -20,10 +20,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * A custom block that can copy the appearance of other full-cube blocks.
- * The CopyBlock stores a reference to another block's state in its BlockEntity.
- */
 public class CopyBlock extends Block implements EntityBlock {
 
     public CopyBlock(Properties properties) {
@@ -57,18 +53,15 @@ public class CopyBlock extends Block implements EntityBlock {
 
         ItemStack heldItem = player.getItemInHand(hand);
 
-        // Sneaking with empty hand clears the copied texture
         if (player.isShiftKeyDown() && heldItem.isEmpty()) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
             player.displayClientMessage(Component.literal("Cleared copied texture"), true);
             return InteractionResult.SUCCESS;
         }
 
-        // If holding a block item, copy its texture
         if (heldItem.getItem() instanceof BlockItem blockItem) {
             Block targetBlock = blockItem.getBlock();
 
-            // Prevent copying itself
             if (targetBlock instanceof CopyBlock) {
                 player.displayClientMessage(Component.literal("Cannot copy a Copy Block!"), true);
                 return InteractionResult.FAIL;
@@ -76,7 +69,6 @@ public class CopyBlock extends Block implements EntityBlock {
 
             BlockState targetState = targetBlock.defaultBlockState();
 
-            // Only allow full cube blocks
             if (!targetState.isCollisionShapeFullBlock(level, pos)) {
                 player.displayClientMessage(Component.literal("Can only copy full block textures!"), true);
                 return InteractionResult.FAIL;
@@ -108,7 +100,6 @@ public class CopyBlock extends Block implements EntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
                                                                   BlockEntityType<T> type) {
-        // This block has no ticking logic
         return null;
     }
 }
