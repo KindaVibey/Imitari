@@ -4,15 +4,10 @@ import com.vibey.copycraft.CopyCraft;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ModelEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
-@Mod.EventBusSubscriber(modid = CopyCraft.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ModelRegistrationHandler {
 
-    @SubscribeEvent
     public static void onModelBake(ModelEvent.ModifyBakingResult event) {
         System.out.println("======== MODEL BAKING EVENT ========");
 

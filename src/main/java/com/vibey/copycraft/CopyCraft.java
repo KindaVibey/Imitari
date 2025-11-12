@@ -1,6 +1,7 @@
 package com.vibey.copycraft;
 
 import com.mojang.logging.LogUtils;
+import com.vibey.copycraft.client.ModelRegistrationHandler;
 import com.vibey.copycraft.registry.ModItems;
 import com.vibey.copycraft.registry.ModBlocks;
 import com.vibey.copycraft.registry.ModBlockEntities;
@@ -27,12 +28,18 @@ public class CopyCraft {
     public CopyCraft() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
+        System.out.println("CopyCraft constructor called!");
+
         modEventBus.addListener(this::commonSetup);
 
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
         ModBlockEntities.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
+
+        // Register model event handler manually
+        modEventBus.addListener(ModelRegistrationHandler::onModelBake);
+        System.out.println("Registered model bake listener!");
 
         MinecraftForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
