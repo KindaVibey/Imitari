@@ -14,32 +14,38 @@ public class ModelRegistrationHandler {
 
     @SubscribeEvent
     public static void onModelBake(ModelEvent.ModifyBakingResult event) {
-        // Get the block model location - this MUST match your blockstate JSON
-        ModelResourceLocation blockModelLocation = new ModelResourceLocation(
-                new ResourceLocation(CopyCraft.MODID, "copy_block"),
-                "inventory"
-        );
+        System.out.println("======== MODEL BAKING EVENT ========");
 
-        // Try to get the existing model
-        BakedModel existingModel = event.getModels().get(blockModelLocation);
+        // Try all possible model locations
+        ResourceLocation blockId = new ResourceLocation(CopyCraft.MODID, "copy_block");
 
-        if (existingModel != null) {
-            // Wrap it in our custom model
-            CopyBlockModel customModel = new CopyBlockModel(existingModel);
-            event.getModels().put(blockModelLocation, customModel);
+        // Try different model resource locations
+        ModelResourceLocation[] locations = {
+                new ModelResourceLocation(blockId, ""),
+                new ModelResourceLocation(blockId, "inventory")
+        };
+
+        boolean found = false;
+        for (ModelResourceLocation loc : locations) {
+            BakedModel existingModel = event.getModels().get(loc);
+
+            if (existingModel != null) {
+                System.out.println("Found model at: " + loc);
+                CopyBlockModel customModel = new CopyBlockModel(existingModel);
+                event.getModels().put(loc, customModel);
+                System.out.println("Replaced with CopyBlockModel!");
+                found = true;
+            } else {
+                System.out.println("No model at: " + loc);
+            }
         }
 
-        // Also register for the block state variant
-        for (String variant : new String[]{"", "inventory"}) {
-            ModelResourceLocation loc = new ModelResourceLocation(
-                    new ResourceLocation(CopyCraft.MODID, "copy_block"),
-                    variant
-            );
-
-            existingModel = event.getModels().get(loc);
-            if (existingModel != null) {
-                event.getModels().put(loc, new CopyBlockModel(existingModel));
-            }
+        if (!found) {
+            System.out.println("WARNING: Could not find copy_block model!");
+            System.out.println("Available models:");
+            event.getModels().keySet().stream()
+                    .filter(rl -> rl.toString().contains("copycraft"))
+                    .forEach(rl -> System.out.println("  - " + rl));
         }
     }
 }

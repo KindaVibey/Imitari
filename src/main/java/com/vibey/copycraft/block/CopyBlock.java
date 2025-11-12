@@ -72,13 +72,22 @@ public class CopyBlock extends Block implements EntityBlock {
                 return InteractionResult.FAIL;
             }
 
-            copyBlockEntity.setCopiedBlock(targetState);
-            level.sendBlockUpdated(pos, state, state, 3);
+            // Check if clicking with same block - if so, rotate
+            BlockState currentCopied = copyBlockEntity.getCopiedBlock();
+            if (!currentCopied.isAir() && currentCopied.getBlock() == targetBlock) {
+                copyBlockEntity.setCopiedBlock(targetState);
+                player.displayClientMessage(Component.literal("Rotated texture"), true);
+            } else {
+                // New block
+                copyBlockEntity.setCopiedBlock(targetState);
+                player.displayClientMessage(
+                        Component.literal("Copied texture from: " + targetBlock.getName().getString()),
+                        true
+                );
+            }
 
-            player.displayClientMessage(
-                    Component.literal("Copied texture from: " + targetBlock.getName().getString()),
-                    true
-            );
+            // Single update call with proper flags
+            level.sendBlockUpdated(pos, state, state, Block.UPDATE_CLIENTS | Block.UPDATE_IMMEDIATE);
 
             return InteractionResult.SUCCESS;
         }
