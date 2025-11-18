@@ -4,7 +4,6 @@ import com.vibey.copycraft.blockentity.CopyBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Explosion;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.entity.player.Player;
@@ -40,22 +39,16 @@ public abstract class CopyBlockVariant extends CopyBlock {
 
     @Override
     public float getDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos) {
-        try {
-            com.vibey.copycraft.mixin.BlockStateBaseMixin.copycraft$setContext(level, pos);
-
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof CopyBlockEntity copyBE) {
-                BlockState copiedState = copyBE.getCopiedBlock();
-                if (!copiedState.isAir()) {
-                    // Get base destroy progress and adjust for mass multiplier
-                    // Lower multiplier = easier to break (higher progress per tick)
-                    float baseProgress = copiedState.getDestroyProgress(player, level, pos);
-                    return baseProgress / massMultiplier;
-                }
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof CopyBlockEntity copyBE) {
+            BlockState copiedState = copyBE.getCopiedBlock();
+            if (!copiedState.isAir()) {
+                // Get base destroy progress and adjust for mass multiplier
+                // Lower multiplier = easier to break (higher progress per tick)
+                float baseProgress = copiedState.getDestroyProgress(player, level, pos);
+                return baseProgress / massMultiplier;
             }
-            return super.getDestroyProgress(state, player, level, pos);
-        } finally {
-            com.vibey.copycraft.mixin.BlockStateBaseMixin.copycraft$clearContext();
         }
+        return super.getDestroyProgress(state, player, level, pos);
     }
 }

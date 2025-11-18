@@ -47,6 +47,18 @@ public class CopyCraft {
 
     private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("CopyCraft common setup complete!");
+
+        // Register VS2 weights on the main thread
+        event.enqueueWork(() -> {
+            try {
+                com.vibey.copycraft.vs2.CopyCraftWeights.register();
+                LOGGER.info("Successfully registered CopyCraft VS2 dynamic mass system!");
+            } catch (NoClassDefFoundError e) {
+                LOGGER.info("Valkyrien Skies not installed - skipping VS2 integration");
+            } catch (Exception e) {
+                LOGGER.error("Failed to register VS2 weights", e);
+            }
+        });
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {

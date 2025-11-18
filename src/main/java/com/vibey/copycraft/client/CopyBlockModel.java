@@ -80,8 +80,10 @@ public class CopyBlockModel implements BakedModel {
 
         // Get the sprite to use
         TextureAtlasSprite sprite;
+        BakedQuad sourceQuad = null;
         if (!copiedQuads.isEmpty()) {
-            sprite = copiedQuads.get(0).getSprite();
+            sourceQuad = copiedQuads.get(0);
+            sprite = sourceQuad.getSprite();
         } else {
             sprite = copiedModel.getParticleIcon(ModelData.EMPTY);
         }
@@ -89,7 +91,7 @@ public class CopyBlockModel implements BakedModel {
         // Remap UVs on our base quads to use the copied texture
         List<BakedQuad> remappedQuads = new ArrayList<>();
         for (BakedQuad quad : baseQuads) {
-            remappedQuads.add(remapQuadTexture(quad, sprite));
+            remappedQuads.add(remapQuadTexture(quad, sprite, sourceQuad));
         }
 
         return remappedQuads;
@@ -109,25 +111,25 @@ public class CopyBlockModel implements BakedModel {
         return switch (rotation) {
             case 1 -> // Z-axis orientation (like log facing north/south)
                     switch (face) {
-                        case UP -> Direction.SOUTH;      // Top becomes front
-                        case DOWN -> Direction.NORTH;    // Bottom becomes back
-                        case NORTH -> Direction.DOWN;    // Back becomes bottom
-                        case SOUTH -> Direction.UP;      // Front becomes top
-                        case EAST, WEST -> face;         // Sides stay sides
+                        case UP -> Direction.SOUTH;
+                        case DOWN -> Direction.NORTH;
+                        case NORTH -> Direction.DOWN;
+                        case SOUTH -> Direction.UP;
+                        case EAST, WEST -> face;
                     };
             case 2 -> // X-axis orientation (like log facing east/west)
                     switch (face) {
-                        case UP -> Direction.EAST;       // Top becomes right
-                        case DOWN -> Direction.WEST;     // Bottom becomes left
-                        case EAST -> Direction.DOWN;     // Right becomes bottom
-                        case WEST -> Direction.UP;       // Left becomes top
-                        case NORTH, SOUTH -> face;       // Front/back stay front/back
+                        case UP -> Direction.EAST;
+                        case DOWN -> Direction.WEST;
+                        case EAST -> Direction.DOWN;
+                        case WEST -> Direction.UP;
+                        case NORTH, SOUTH -> face;
                     };
             default -> face;
         };
     }
 
-    private BakedQuad remapQuadTexture(BakedQuad originalQuad, TextureAtlasSprite newSprite) {
+    private BakedQuad remapQuadTexture(BakedQuad originalQuad, TextureAtlasSprite newSprite, @Nullable BakedQuad sourceQuad) {
         int[] vertexData = originalQuad.getVertices().clone();
         TextureAtlasSprite oldSprite = originalQuad.getSprite();
 
@@ -152,9 +154,12 @@ public class CopyBlockModel implements BakedModel {
             vertexData[offset + 5] = Float.floatToRawIntBits(newV);
         }
 
+        // Use the source quad's tint index if available (for colored glass, etc.)
+        int tintIndex = sourceQuad != null ? sourceQuad.getTintIndex() : originalQuad.getTintIndex();
+
         return new BakedQuad(
                 vertexData,
-                originalQuad.getTintIndex(),
+                tintIndex,
                 originalQuad.getDirection(),
                 newSprite,
                 originalQuad.isShade()
