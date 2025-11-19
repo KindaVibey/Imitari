@@ -4,9 +4,7 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "copycraft.refmap.json",
   "mixins": [
-    "VSMassContextMixin",
-    "AlternativeVSMassContextMixin",
-    "OriginalVSMassContextMixin"
+    "VSMassContextMixin"
   ],
   "injectors": {
     "defaultRequire": 0

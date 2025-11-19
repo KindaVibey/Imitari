@@ -10,44 +10,45 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * This mixin targets the VS2 assembly code to provide context for mass calculations.
- * The @Pseudo annotation means this mixin won't cause crashes if VS isn't installed.
+ * CRITICAL: This mixin provides position context to our BlockStateInfoProvider.
+ * Eureka doesn't need this because ballast mass is in BlockState (power level).
+ * We need this because CopyBlock mass is in BlockEntity (copied block).
  */
 @Pseudo
-@Mixin(targets = {
-        "org.valkyrienskies.mod.common.assembly.ShipAssemblyKt",
-        "org.valkyrienskies.mod.common.assembly.ShipAssemblyKt$getBlockMass"
-}, remap = false)
+@Mixin(targets = "org.valkyrienskies.mod.common.assembly.ShipAssemblyKt", remap = false)
 public class VSMassContextMixin {
 
-    /**
-     * Inject at HEAD to set context BEFORE VS queries the mass
-     */
     @Inject(
             method = "getBlockMass",
             at = @At("HEAD"),
             remap = false,
-            require = 0  // Don't require this mixin to succeed
+            require = 0
     )
-    private static void setMassContext(Level level, BlockPos pos, BlockState blockState,
-                                       Object ship, CallbackInfoReturnable<Double> cir) {
+    private static void setContextBeforeQuery(
+            Level level,
+            BlockPos pos,
+            BlockState blockState,
+            Object ship,
+            CallbackInfoReturnable<Double> cir
+    ) {
+        System.out.println("[CopyCraft Mixin] getBlockMass HEAD: " + blockState + " at " + pos);
         CopyCraftWeights.setContext(level, pos);
-        System.out.println("[CopyCraft VS] getBlockMass HEAD: " + blockState + " at " + pos);
     }
 
-    /**
-     * Inject at RETURN to clear context AFTER VS is done
-     */
     @Inject(
             method = "getBlockMass",
             at = @At("RETURN"),
             remap = false,
-            require = 0  // Don't require this mixin to succeed
+            require = 0
     )
-    private static void clearMassContext(Level level, BlockPos pos, BlockState blockState,
-                                         Object ship, CallbackInfoReturnable<Double> cir) {
-        Double result = cir.getReturnValue();
-        System.out.println("[CopyCraft VS] getBlockMass RETURN: " + result + " kg for " + blockState);
+    private static void clearContextAfterQuery(
+            Level level,
+            BlockPos pos,
+            BlockState blockState,
+            Object ship,
+            CallbackInfoReturnable<Double> cir
+    ) {
+        System.out.println("[CopyCraft Mixin] getBlockMass RETURN: " + cir.getReturnValue() + " kg");
         CopyCraftWeights.clearContext();
     }
 }

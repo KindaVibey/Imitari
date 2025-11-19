@@ -62,16 +62,9 @@ public class CopyBlockEntity extends BlockEntity {
         setChanged();
 
         if (level != null && !level.isClientSide) {
-            // Server: Invalidate VS cache when texture changes
+            // Invalidate VS cache for this position
             try {
                 com.vibey.copycraft.vs2.CopyCraftWeights.invalidateCache(worldPosition);
-
-                // Force VS to recalculate ship mass if this block is on a ship
-                // This ensures the mass updates immediately
-                if (!oldBlock.isAir() || !newBlock.isAir()) {
-                    System.out.println("CopyBlock texture changed at " + worldPosition +
-                            ": " + oldBlock + " -> " + newBlock);
-                }
             } catch (NoClassDefFoundError e) {
                 // VS not installed, ignore
             }
@@ -80,6 +73,13 @@ public class CopyBlockEntity extends BlockEntity {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
                     Block.UPDATE_ALL);
             level.updateNeighborsAt(worldPosition, getBlockState().getBlock());
+
+            // Log the change
+            if (!oldBlock.is(newBlock.getBlock())) {
+                System.out.println("[CopyCraft] Texture changed at " + worldPosition +
+                        ": " + (oldBlock.isAir() ? "EMPTY" : oldBlock.getBlock().getName().getString()) +
+                        " -> " + (newBlock.isAir() ? "EMPTY" : newBlock.getBlock().getName().getString()));
+            }
         }
     }
 
