@@ -25,11 +25,14 @@ public class CopyBlockSlab extends CopyBlockVariant {
     public CopyBlockSlab(Properties properties) {
         super(properties, 0.5f);
         this.registerDefaultState(this.stateDefinition.any()
-                .setValue(BlockStateProperties.SLAB_TYPE, SlabType.BOTTOM));
+                .setValue(BlockStateProperties.SLAB_TYPE, SlabType.BOTTOM)
+                .setValue(MASS_HIGH, 0)
+                .setValue(MASS_LOW, 0));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder); // This adds MASS_HIGH and MASS_LOW
         builder.add(BlockStateProperties.SLAB_TYPE);
     }
 

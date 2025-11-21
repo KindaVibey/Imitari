@@ -40,11 +40,14 @@ public class CopyBlockStairs extends CopyBlockVariant {
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(BlockStateProperties.HORIZONTAL_FACING, Direction.NORTH)
                 .setValue(BlockStateProperties.HALF, Half.BOTTOM)
-                .setValue(BlockStateProperties.STAIRS_SHAPE, StairsShape.STRAIGHT));
+                .setValue(BlockStateProperties.STAIRS_SHAPE, StairsShape.STRAIGHT)
+                .setValue(MASS_HIGH, 0)
+                .setValue(MASS_LOW, 0));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder); // This adds MASS_HIGH and MASS_LOW
         builder.add(BlockStateProperties.HORIZONTAL_FACING, BlockStateProperties.HALF, BlockStateProperties.STAIRS_SHAPE);
     }
 

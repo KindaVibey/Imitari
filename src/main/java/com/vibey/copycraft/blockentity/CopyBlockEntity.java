@@ -1,5 +1,6 @@
 package com.vibey.copycraft.blockentity;
 
+import com.vibey.copycraft.block.CopyBlockVariant;
 import com.vibey.copycraft.client.ClientEventsHandler;
 import com.vibey.copycraft.client.CopyBlockModel;
 import com.vibey.copycraft.registry.ModBlockEntities;
@@ -62,6 +63,9 @@ public class CopyBlockEntity extends BlockEntity {
         setChanged();
 
         if (level != null && !level.isClientSide) {
+            // Calculate and update mass in BlockState for VS2
+            updateMassInBlockState(newBlock);
+
             // Invalidate VS cache for this position
             try {
                 com.vibey.copycraft.vs2.CopyCraftWeights.invalidateCache(worldPosition);
@@ -81,6 +85,53 @@ public class CopyBlockEntity extends BlockEntity {
                         " -> " + (newBlock.isAir() ? "EMPTY" : newBlock.getBlock().getName().getString()));
             }
         }
+    }
+
+    /**
+     * Update the mass in the BlockState based on the copied block's mass
+     */
+    private void updateMassInBlockState(BlockState copiedBlock) {
+        if (level == null || level.isClientSide) return;
+
+        BlockState currentState = getBlockState();
+        if (!(currentState.getBlock() instanceof CopyBlockVariant variant)) {
+            return;
+        }
+
+        double finalMass = 0.0;
+
+        if (!copiedBlock.isAir()) {
+            try {
+                // Get mass from VS2 system
+                kotlin.Pair<Double, org.valkyrienskies.core.apigame.world.chunks.BlockType> blockInfo =
+                        org.valkyrienskies.mod.common.BlockStateInfo.INSTANCE.get(copiedBlock);
+
+                if (blockInfo != null && blockInfo.getFirst() != null) {
+                    Double copiedMass = blockInfo.getFirst();
+                    float multiplier = variant.getMassMultiplier();
+                    finalMass = copiedMass * multiplier;
+
+                    System.out.println("[CopyCraft] Copying " + copiedBlock.getBlock().getName().getString() +
+                            ": " + copiedMass + "kg × " + multiplier + " = " + finalMass + "kg");
+                } else {
+                    // Fallback mass if VS2 doesn't have data
+                    finalMass = 50.0 * variant.getMassMultiplier();
+                    System.out.println("[CopyCraft] No VS2 data for " + copiedBlock.getBlock().getName().getString() +
+                            ", using fallback: " + finalMass + "kg");
+                }
+            } catch (NoClassDefFoundError e) {
+                // VS not installed, use default mass
+                finalMass = 50.0 * variant.getMassMultiplier();
+                System.out.println("[CopyCraft] VS2 not installed, using default mass: " + finalMass + "kg");
+            }
+        }
+
+        // Store mass in BlockState using piecewise encoding
+        BlockState newState = CopyBlockVariant.setMass(currentState, finalMass);
+        level.setBlock(worldPosition, newState, Block.UPDATE_ALL);
+
+        System.out.println("[CopyCraft] Set mass in BlockState: " + finalMass + "kg (encoded as " +
+                CopyBlockVariant.encodeMass(finalMass) + ")");
     }
 
     private void rotateBlock() {
