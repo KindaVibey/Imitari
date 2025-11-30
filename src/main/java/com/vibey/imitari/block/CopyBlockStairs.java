@@ -8,6 +8,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
@@ -43,12 +44,40 @@ public class CopyBlockStairs extends StairBlock implements EntityBlock, ICopyBlo
         // Pass a dummy state supplier - we don't use it for textures anyway
         super(() -> Blocks.OAK_PLANKS.defaultBlockState(), properties);
         this.massMultiplier = massMultiplier;
+        // Note: registerDefaultState is called in createBlockStateDefinition
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         super.createBlockStateDefinition(builder);
         builder.add(MASS_HIGH, MASS_LOW);
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+
+        // Ensure the BlockEntity starts fresh with no copied block
+        if (!level.isClientSide) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof CopyBlockEntity copyBE) {
+                // Force reset to empty state
+                copyBE.setCopiedBlock(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            }
+        }
+    }
+
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        // Get the base stairs state from parent
+        BlockState state = super.getStateForPlacement(context);
+
+        // Reset mass properties to 0 when placing a fresh block
+        if (state != null) {
+            state = state.setValue(MASS_HIGH, 0).setValue(MASS_LOW, 0);
+        }
+
+        return state;
     }
 
     @Override
@@ -142,6 +171,7 @@ public class CopyBlockStairs extends StairBlock implements EntityBlock, ICopyBlo
                 }
             }
         }
+        // CRITICAL: Call super to properly remove the BlockEntity
         super.onRemove(state, level, pos, newState, isMoving);
     }
 

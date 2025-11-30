@@ -1,8 +1,0 @@
-{
-  "parent": "minecraft:block/stairs",
-  "textures": {
-    "bottom": "imitari:block/copycraftblock",
-    "top": "imitari:block/copycraftblock",
-    "side": "imitari:block/copycraftblock"
-  }
-}
