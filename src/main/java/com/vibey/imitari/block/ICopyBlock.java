@@ -57,6 +57,19 @@ public interface ICopyBlock {
         return 1.0f;
     }
 
+    default float getDestroySpeed(BlockState state, BlockGetter level, BlockPos pos) {
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof CopyBlockEntity copyBE) {
+            BlockState copiedState = copyBE.getCopiedBlock();
+            if (!copiedState.isAir()) {
+                float baseProgress = copiedState.getDestroySpeed(level, pos);
+                return baseProgress / getMassMultiplier();
+            }
+        }
+        // Return a default value if no copied block
+        return 1.0f;
+    }
+
     /**
      * Check if this block should be registered for dynamic model rendering.
      * Override to return false if you want to handle rendering yourself.

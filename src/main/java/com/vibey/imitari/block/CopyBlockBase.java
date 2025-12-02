@@ -79,6 +79,11 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
     }
 
     @Override
+    public float getDestroySpeed(BlockState state, BlockGetter level, BlockPos pos) {
+        return ICopyBlock.super.getDestroySpeed(state, level, pos);
+    }
+
+    @Override
     public VoxelShape getVisualShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
         return Shapes.block();
     }
