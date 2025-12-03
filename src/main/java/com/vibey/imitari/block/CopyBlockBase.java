@@ -93,6 +93,21 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
         return false;
     }
 
+    // ========== PLACEMENT FIX ==========
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+
+        // Ensure the BlockEntity starts fresh with no copied block
+        if (!level.isClientSide) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof CopyBlockEntity copyBE) {
+                // Force reset to empty state
+                copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
+            }
+        }
+    }
+
     // ========== HELPER: CLEAN ITEMSTACK ==========
     public static ItemStack cleanStack(ItemStack stack) {
         if (stack.hasTag() && stack.getTag().isEmpty()) {
@@ -121,13 +136,8 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
         ItemStack heldItem = player.getItemInHand(hand);
         BlockState currentCopied = copyBlockEntity.getCopiedBlock();
 
-        // Shift + empty hand = remove copied block and drop
-        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir()) {
-
-            ItemStack droppedItem = new ItemStack(currentCopied.getBlock());
-            droppedItem.setTag(null);
-            level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5, droppedItem));
-
+        // Shift + empty hand (creative only) = remove copied block (no drop)
+        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir() && player.isCreative()) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
 
             state.updateNeighbourShapes(level, pos, Block.UPDATE_ALL);
@@ -157,6 +167,30 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
         }
 
         return InteractionResult.PASS;
+    }
+
+    // ========== CREATIVE PICK BLOCK ==========
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        // Creative middle-click with shift: give the copied block
+        // Check if player is creative and holding shift via client-side context
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof CopyBlockEntity copyBE) {
+            BlockState copiedState = copyBE.getCopiedBlock();
+            if (!copiedState.isAir()) {
+                // Check if player is sneaking (shift key down)
+                try {
+                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                    if (mc.player != null && mc.player.isShiftKeyDown()) {
+                        return new ItemStack(copiedState.getBlock());
+                    }
+                } catch (Exception e) {
+                    // Server side or error, just return default
+                }
+            }
+        }
+        // Default: give the CopyBlock itself
+        return super.getCloneItemStack(level, pos, state);
     }
 
     // ========== DROPS FIX ==========

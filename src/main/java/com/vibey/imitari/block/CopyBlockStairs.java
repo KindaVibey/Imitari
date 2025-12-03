@@ -8,7 +8,6 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
@@ -23,8 +22,6 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.function.Supplier;
 
 /**
  * Stairs-sized CopyBlock variant (0.75x multiplier)
@@ -62,22 +59,9 @@ public class CopyBlockStairs extends StairBlock implements EntityBlock, ICopyBlo
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof CopyBlockEntity copyBE) {
                 // Force reset to empty state
-                copyBE.setCopiedBlock(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
             }
         }
-    }
-
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        // Get the base stairs state from parent
-        BlockState state = super.getStateForPlacement(context);
-
-        // Reset mass properties to 0 when placing a fresh block
-        if (state != null) {
-            state = state.setValue(MASS_HIGH, 0).setValue(MASS_LOW, 0);
-        }
-
-        return state;
     }
 
     @Override
@@ -119,12 +103,8 @@ public class CopyBlockStairs extends StairBlock implements EntityBlock, ICopyBlo
         ItemStack heldItem = player.getItemInHand(hand);
         BlockState currentCopied = copyBlockEntity.getCopiedBlock();
 
-        // Shift + empty hand = remove copied block and drop
-        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir()) {
-            ItemStack droppedItem = new ItemStack(currentCopied.getBlock());
-            droppedItem.setTag(null);
-            level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5, droppedItem));
-
+        // Shift + empty hand (creative only) = remove copied block (no drop)
+        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir() && player.isCreative()) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
             state.updateNeighbourShapes(level, pos, Block.UPDATE_ALL);
             level.updateNeighborsAt(pos, state.getBlock());
@@ -153,6 +133,27 @@ public class CopyBlockStairs extends StairBlock implements EntityBlock, ICopyBlo
         }
 
         return InteractionResult.PASS;
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        // Creative middle-click with shift: give the copied block
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof CopyBlockEntity copyBE) {
+            BlockState copiedState = copyBE.getCopiedBlock();
+            if (!copiedState.isAir()) {
+                try {
+                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                    if (mc.player != null && mc.player.isShiftKeyDown()) {
+                        return new ItemStack(copiedState.getBlock());
+                    }
+                } catch (Exception e) {
+                    // Server side or error, just return default
+                }
+            }
+        }
+        // Default: give the CopyBlock itself
+        return super.getCloneItemStack(level, pos, state);
     }
 
     // ========== DROPS FIX ==========

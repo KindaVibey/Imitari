@@ -131,6 +131,20 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
     }
 
     @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+
+        // Ensure the BlockEntity starts fresh with no copied block
+        if (!level.isClientSide) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof CopyBlockEntity copyBE) {
+                // Force reset to empty state
+                copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
+            }
+        }
+    }
+
+    @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(FACING, LAYERS, MASS_HIGH, MASS_LOW);
     }
@@ -278,6 +292,11 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
 
     @Override
     public boolean canBeReplaced(BlockState state, BlockPlaceContext context) {
+        // If player is sneaking, don't allow replacing (forces new placement)
+        if (context.getPlayer() != null && context.getPlayer().isShiftKeyDown()) {
+            return false;
+        }
+
         // Allow replacing if not full (8 layers) and using the same item
         if (context.getItemInHand().getItem() == this.asItem()) {
             if (state.getValue(LAYERS) < 8) {
@@ -316,12 +335,13 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         ItemStack heldItem = player.getItemInHand(hand);
         BlockState currentCopied = copyBlockEntity.getCopiedBlock();
 
-        // Shift + empty hand = remove copied block and drop
-        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir()) {
-            ItemStack droppedItem = new ItemStack(currentCopied.getBlock());
-            droppedItem.setTag(null);
-            level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 1, pos.getZ() + 0.5, droppedItem));
+        // If holding a layer block with shift, don't do anything (let placement happen)
+        if (player.isShiftKeyDown() && heldItem.getItem() == this.asItem()) {
+            return InteractionResult.PASS;
+        }
 
+        // Shift + empty hand (creative only) = remove copied block (no drop)
+        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir() && player.isCreative()) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
             state.updateNeighbourShapes(level, pos, Block.UPDATE_ALL);
             level.updateNeighborsAt(pos, state.getBlock());
@@ -350,6 +370,27 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         }
 
         return InteractionResult.PASS;
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        // Creative middle-click with shift: give the copied block
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof CopyBlockEntity copyBE) {
+            BlockState copiedState = copyBE.getCopiedBlock();
+            if (!copiedState.isAir()) {
+                try {
+                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                    if (mc.player != null && mc.player.isShiftKeyDown()) {
+                        return new ItemStack(copiedState.getBlock());
+                    }
+                } catch (Exception e) {
+                    // Server side or error, just return default
+                }
+            }
+        }
+        // Default: give the CopyBlock itself
+        return super.getCloneItemStack(level, pos, state);
     }
 
     // ========== DROPS FIX ==========

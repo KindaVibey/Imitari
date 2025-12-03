@@ -1,10 +1,16 @@
 package com.vibey.imitari.block;
 
+import com.vibey.imitari.blockentity.CopyBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -26,6 +32,20 @@ public class CopyBlockSlab extends CopyBlockVariant {
                 .setValue(BlockStateProperties.SLAB_TYPE, SlabType.BOTTOM)
                 .setValue(MASS_HIGH, 0)
                 .setValue(MASS_LOW, 0));
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @javax.annotation.Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+
+        // Ensure the BlockEntity starts fresh with no copied block
+        if (!level.isClientSide) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof CopyBlockEntity copyBE) {
+                // Force reset to empty state
+                copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
+            }
+        }
     }
 
     @Override
@@ -110,5 +130,26 @@ public class CopyBlockSlab extends CopyBlockVariant {
     @Override
     public boolean isCollisionShapeFullBlock(BlockState state, BlockGetter level, BlockPos pos) {
         return state.getValue(BlockStateProperties.SLAB_TYPE) == SlabType.DOUBLE;
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        // Creative middle-click with shift: give the copied block
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof CopyBlockEntity copyBE) {
+            BlockState copiedState = copyBE.getCopiedBlock();
+            if (!copiedState.isAir()) {
+                try {
+                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                    if (mc.player != null && mc.player.isShiftKeyDown()) {
+                        return new ItemStack(copiedState.getBlock());
+                    }
+                } catch (Exception e) {
+                    // Server side or error, just return default
+                }
+            }
+        }
+        // Default: give the CopyBlock itself
+        return super.getCloneItemStack(level, pos, state);
     }
 }
