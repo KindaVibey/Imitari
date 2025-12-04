@@ -5,7 +5,6 @@ import com.vibey.imitari.util.CopyBlockContext;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,24 +14,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * The ONLY mixin needed for dynamic tags.
  * Now checks for ICopyBlock interface instead of concrete class.
- *
- * FIXED: Added proper @Shadow method and used correct Mixin target
  */
 @Mixin(BlockBehaviour.BlockStateBase.class)
 public abstract class BlockStateTagMixin {
 
-    // Proper shadow - cast 'this' to BlockState to access getBlock()
     @Shadow
-    public abstract Block getBlock();
+    public abstract Block m_60734_(); // getBlock() - obfuscated name
 
     /**
      * Inject at HEAD of is(TagKey) to check CopyBlock's copied block tags.
      */
-    @Inject(method = "is(Lnet/minecraft/tags/TagKey;)Z", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "m_204336_", at = @At("HEAD"), cancellable = true)
     private void imitari$checkCopiedTags(TagKey<Block> tag, CallbackInfoReturnable<Boolean> cir) {
         // CRITICAL: Only process if this implements ICopyBlock
         // Early return means ZERO performance impact on all other blocks
-        if (!(this.getBlock() instanceof ICopyBlock)) {
+        if (!(this.m_60734_() instanceof ICopyBlock)) {
             return;
         }
 
