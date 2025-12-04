@@ -24,9 +24,10 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Slab-sized CopyBlock variant (0.5x multiplier)
+ * Slab-sized CopyBlock variant (0.5x multiplier).
+ * Now uses the simplified delegation system.
  */
-public class CopyBlockSlab extends CopyBlockVariant {
+public class CopyBlockSlab extends CopyBlockBase {
     protected static final VoxelShape BOTTOM_SHAPE = Block.box(0, 0, 0, 16, 8, 16);
     protected static final VoxelShape TOP_SHAPE = Block.box(0, 8, 0, 16, 16, 16);
 
@@ -41,18 +42,14 @@ public class CopyBlockSlab extends CopyBlockVariant {
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @javax.annotation.Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
-
-        // Ensure the BlockEntity starts fresh with no copied block
         if (!level.isClientSide) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof CopyBlockEntity copyBE) {
-                // Force reset to empty state
                 copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
             }
         }
     }
 
-    // ========== SOUND COPYING ==========
     @Override
     public SoundType getSoundType(BlockState state, LevelReader level, BlockPos pos, @Nullable Entity entity) {
         BlockEntity be = level.getBlockEntity(pos);
@@ -98,7 +95,6 @@ public class CopyBlockSlab extends CopyBlockVariant {
         return this.defaultBlockState();
     }
 
-    // ========== SOUND HELPER ==========
     protected void playBlockSound(Level level, BlockPos pos, BlockState copiedState) {
         if (!level.isClientSide && !copiedState.isAir()) {
             SoundType soundType = copiedState.getSoundType(level, pos, null);
@@ -157,7 +153,6 @@ public class CopyBlockSlab extends CopyBlockVariant {
         return getCollisionShape(state, level, pos, context);
     }
 
-    // VS2 collision settings
     @Override
     public boolean useShapeForLightOcclusion(BlockState state) {
         return true;
@@ -166,7 +161,7 @@ public class CopyBlockSlab extends CopyBlockVariant {
     @Override
     public boolean propagatesSkylightDown(BlockState state, BlockGetter level, BlockPos pos) {
         SlabType type = state.getValue(BlockStateProperties.SLAB_TYPE);
-        return type != SlabType.DOUBLE; // Only double slabs block skylight
+        return type != SlabType.DOUBLE;
     }
 
     @Override
@@ -176,7 +171,6 @@ public class CopyBlockSlab extends CopyBlockVariant {
 
     @Override
     public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
-        // Creative middle-click with shift: give the copied block
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof CopyBlockEntity copyBE) {
             BlockState copiedState = copyBE.getCopiedBlock();
@@ -187,11 +181,10 @@ public class CopyBlockSlab extends CopyBlockVariant {
                         return new ItemStack(copiedState.getBlock());
                     }
                 } catch (Exception e) {
-                    // Server side or error, just return default
+                    // Server side or error
                 }
             }
         }
-        // Default: give the CopyBlock itself
         return super.getCloneItemStack(level, pos, state);
     }
 }

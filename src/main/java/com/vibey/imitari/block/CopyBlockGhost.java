@@ -1,9 +1,9 @@
 package com.vibey.imitari.block;
 
 /**
- * Full-sized CopyBlock variant (1.0x multiplier)
+ * copyblock with no collision
  */
-public class CopyBlockGhost extends CopyBlockVariant {
+public class CopyBlockGhost extends CopyBlockBase {
     public CopyBlockGhost(Properties properties) {
         super(properties, 1.0f);
     }

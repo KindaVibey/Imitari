@@ -5,16 +5,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
@@ -29,8 +26,16 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Base implementation of ICopyBlock for standard full-block behavior.
- * Extend this class for custom CopyBlock variants.
+ * Base implementation that handles all delegation to ICopyBlock.
+ *
+ * EXTEND THIS for easy CopyBlock creation - just pass mass multiplier!
+ *
+ * Example:
+ *   public class MyCustomCopyBlock extends CopyBlockBase {
+ *       public MyCustomCopyBlock(Properties properties) {
+ *           super(properties, 0.75f); // That's it!
+ *       }
+ *   }
  */
 public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
     public static final IntegerProperty MASS_HIGH = IntegerProperty.create("mass_high", 0, 15);
@@ -56,6 +61,14 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
     }
 
     @Override
+    public float getMassMultiplier() {
+        return massMultiplier;
+    }
+
+    // ==================== DELEGATION TO ICOPYBLOCK ====================
+    // These methods call the interface implementations which use getMassMultiplier()
+
+    @Override
     public RenderShape getRenderShape(BlockState state) {
         return RenderShape.MODEL;
     }
@@ -67,24 +80,49 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
     }
 
     @Override
-    public float getMassMultiplier() {
-        return massMultiplier;
-    }
-
-    @Override
     public float getExplosionResistance(BlockState state, BlockGetter level, BlockPos pos, Explosion explosion) {
-        return ICopyBlock.super.getExplosionResistance(state, level, pos, explosion);
+        return copyblock$getExplosionResistance(state, level, pos, explosion);
     }
 
     @Override
     public float getDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos) {
-        return ICopyBlock.super.getDestroyProgress(state, player, level, pos);
+        return copyblock$getDestroyProgress(state, player, level, pos);
     }
 
-    // ========== SOUND COPYING ==========
     @Override
     public SoundType getSoundType(BlockState state, LevelReader level, BlockPos pos, @Nullable Entity entity) {
-        return ICopyBlock.super.getSoundType(state, level, pos, entity);
+        return copyblock$getSoundType(state, level, pos, entity);
+    }
+
+    @Override
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        return copyblock$use(state, level, pos, player, hand, hit);
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        ItemStack result = copyblock$getCloneItemStack(level, pos, state);
+        return result.isEmpty() ? super.getCloneItemStack(level, pos, state) : result;
+    }
+
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        copyblock$onRemove(state, level, pos, newState, isMoving);
+        super.onRemove(state, level, pos, newState, isMoving);
+    }
+
+    @Override
+    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        copyblock$playerWillDestroy(level, pos, state, player);
+        super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state,
+                            @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        copyblock$setPlacedBy(level, pos, state, placer, stack);
     }
 
     @Override
@@ -102,153 +140,8 @@ public class CopyBlockBase extends Block implements EntityBlock, ICopyBlock {
         return false;
     }
 
-    // ========== PLACEMENT FIX ==========
-    @Override
-    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
-        super.setPlacedBy(level, pos, state, placer, stack);
+    // ==================== MASS ENCODING UTILITIES ====================
 
-        // Ensure the BlockEntity starts fresh with no copied block
-        if (!level.isClientSide) {
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof CopyBlockEntity copyBE) {
-                // Force reset to empty state
-                copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
-            }
-        }
-    }
-
-    // ========== HELPER: CLEAN ITEMSTACK ==========
-    public static ItemStack cleanStack(ItemStack stack) {
-        if (stack.hasTag() && stack.getTag().isEmpty()) {
-            stack.setTag(null);
-        }
-
-        var nbt = stack.serializeNBT();
-        if (nbt.contains("ForgeCaps")) {
-            nbt.remove("ForgeCaps");
-            stack.deserializeNBT(nbt);
-        }
-
-        return stack;
-    }
-
-    // ========== INTERACTION ==========
-    @Override
-    public InteractionResult use(BlockState state, Level level, BlockPos pos,
-                                 Player player, InteractionHand hand, BlockHitResult hit) {
-
-        if (level.isClientSide) return InteractionResult.SUCCESS;
-
-        BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (!(blockEntity instanceof CopyBlockEntity copyBlockEntity)) return InteractionResult.PASS;
-
-        ItemStack heldItem = player.getItemInHand(hand);
-        BlockState currentCopied = copyBlockEntity.getCopiedBlock();
-
-        // Shift + empty hand (creative only) = remove copied block (no drop)
-        if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir() && player.isCreative()) {
-            copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
-
-            state.updateNeighbourShapes(level, pos, Block.UPDATE_ALL);
-            level.updateNeighborsAt(pos, state.getBlock());
-
-            return InteractionResult.SUCCESS;
-        }
-
-        // Place block in empty CopyBlock
-        if (heldItem.getItem() instanceof BlockItem blockItem) {
-            Block targetBlock = blockItem.getBlock();
-            if (targetBlock instanceof ICopyBlock) return InteractionResult.FAIL;
-
-            BlockState targetState = targetBlock.defaultBlockState();
-            if (!targetState.isCollisionShapeFullBlock(level, pos)) return InteractionResult.FAIL;
-
-            if (!currentCopied.isAir()) {
-                if (currentCopied.getBlock() == targetBlock) {
-                    // Already has this block, just update rotation (no sound)
-                    copyBlockEntity.setCopiedBlock(targetState);
-                    return InteractionResult.SUCCESS;
-                } else return InteractionResult.FAIL;
-            } else {
-                // First time placing a block - play sound
-                if (!player.isCreative()) heldItem.shrink(1);
-                copyBlockEntity.setCopiedBlock(targetState);
-                playBlockSound(level, pos, targetState);
-                return InteractionResult.SUCCESS;
-            }
-        }
-
-        return InteractionResult.PASS;
-    }
-
-    // ========== SOUND HELPER ==========
-    protected void playBlockSound(Level level, BlockPos pos, BlockState copiedState) {
-        if (!level.isClientSide && !copiedState.isAir()) {
-            SoundType soundType = copiedState.getSoundType(level, pos, null);
-            level.playSound(
-                    null,
-                    pos,
-                    soundType.getPlaceSound(),
-                    net.minecraft.sounds.SoundSource.BLOCKS,
-                    (soundType.getVolume() + 1.0F) / 2.0F,
-                    soundType.getPitch() * 0.8F
-            );
-        }
-    }
-
-    // ========== CREATIVE PICK BLOCK ==========
-    @Override
-    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
-        // Creative middle-click with shift: give the copied block
-        // Check if player is creative and holding shift via client-side context
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof CopyBlockEntity copyBE) {
-            BlockState copiedState = copyBE.getCopiedBlock();
-            if (!copiedState.isAir()) {
-                // Check if player is sneaking (shift key down)
-                try {
-                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                    if (mc.player != null && mc.player.isShiftKeyDown()) {
-                        return new ItemStack(copiedState.getBlock());
-                    }
-                } catch (Exception e) {
-                    // Server side or error, just return default
-                }
-            }
-        }
-        // Default: give the CopyBlock itself
-        return super.getCloneItemStack(level, pos, state);
-    }
-
-    // ========== DROPS FIX ==========
-    @Override
-    public void onRemove(BlockState state, Level level, BlockPos pos,
-                         BlockState newState, boolean isMoving) {
-        if (!state.is(newState.getBlock()) && !level.isClientSide) {
-            BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity instanceof CopyBlockEntity be) {
-                BlockState copiedState = be.getCopiedBlock();
-                if (!copiedState.isAir() && !be.wasRemovedByCreative()) {
-                    ItemStack droppedItem = new ItemStack(copiedState.getBlock());
-                    droppedItem.setTag(null);
-                    level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5,
-                            pos.getY() + 0.5, pos.getZ() + 0.5, droppedItem));
-                }
-            }
-        }
-        super.onRemove(state, level, pos, newState, isMoving);
-    }
-
-    @Override
-    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
-        BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity instanceof CopyBlockEntity copyBlockEntity) {
-            if (player.isCreative()) copyBlockEntity.setRemovedByCreative(true);
-        }
-        super.playerWillDestroy(level, pos, state, player);
-    }
-
-    // ==================== MASS ENCODING METHODS ====================
     public static int encodeMass(double mass) {
         mass = Math.max(0, Math.min(4400, mass));
         if (mass < 50) return (int) mass;

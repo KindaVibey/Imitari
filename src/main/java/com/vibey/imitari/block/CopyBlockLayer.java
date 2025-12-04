@@ -37,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Layer block that can stack in 8 vertical layers (1/8 block each).
- * Can be placed on any face (like Copycats' layer block).
+ * Can be placed on any face. Base multiplier is 0.125f per layer.
  */
 public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
@@ -45,8 +45,7 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
     public static final IntegerProperty MASS_HIGH = IntegerProperty.create("mass_high", 0, 15);
     public static final IntegerProperty MASS_LOW = IntegerProperty.create("mass_low", 0, 15);
 
-    // Shapes for each direction and layer count
-    // [direction][layers]
+    // Shapes for each direction and layer count [direction][layers]
     protected static final VoxelShape[][] SHAPES = new VoxelShape[6][9];
 
     static {
@@ -117,15 +116,15 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         SHAPES[5][8] = Block.box(0, 0, 0, 16, 16, 16);
     }
 
-    private final float massMultiplier;
+    private final float baseMultiplier;
 
     public CopyBlockLayer(Properties properties) {
-        this(properties, 0.125f); // Each layer is 1/8 of a block
+        this(properties, 0.125f);
     }
 
     public CopyBlockLayer(Properties properties, float baseMultiplier) {
         super(properties);
-        this.massMultiplier = baseMultiplier;
+        this.baseMultiplier = baseMultiplier;
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.UP)
                 .setValue(LAYERS, 1)
@@ -134,14 +133,21 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
     }
 
     @Override
+    public float getMassMultiplier() {
+        return baseMultiplier; // Note: Actual multiplier is scaled by layer count
+    }
+
+    public float getEffectiveMassMultiplier(BlockState state) {
+        int layers = state.getValue(LAYERS);
+        return baseMultiplier * layers;
+    }
+
+    @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
         super.setPlacedBy(level, pos, state, placer, stack);
-
-        // Ensure the BlockEntity starts fresh with no copied block
-        if (!level.isClientSide) {
+        if (!level.isClientSide && state.getValue(LAYERS) == 1) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof CopyBlockEntity copyBE) {
-                // Force reset to empty state
                 copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
             }
         }
@@ -163,21 +169,7 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         return new CopyBlockEntity(pos, state);
     }
 
-    @Override
-    public float getMassMultiplier() {
-        // Base multiplier times number of layers
-        // This will be scaled per-state in getExplosionResistance
-        return massMultiplier;
-    }
-
-    /**
-     * Get the effective mass multiplier for a specific state
-     */
-    public float getEffectiveMassMultiplier(BlockState state) {
-        int layers = state.getValue(LAYERS);
-        return massMultiplier * layers;
-    }
-
+    // Override physics methods to use effective multiplier (base * layers)
     @Override
     public float getExplosionResistance(BlockState state, BlockGetter level, BlockPos pos, Explosion explosion) {
         BlockEntity be = level.getBlockEntity(pos);
@@ -204,10 +196,9 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         return super.getDestroyProgress(state, player, level, pos);
     }
 
-    // ========== SOUND COPYING ==========
     @Override
     public SoundType getSoundType(BlockState state, LevelReader level, BlockPos pos, @Nullable Entity entity) {
-        return ICopyBlock.super.getSoundType(state, level, pos, entity);
+        return copyblock$getSoundType(state, level, pos, entity);
     }
 
     @Override
@@ -219,16 +210,12 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
 
     @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        Direction facing = state.getValue(FACING);
-        int layers = state.getValue(LAYERS);
-        return SHAPES[facing.ordinal()][layers];
+        return getShape(state, level, pos, context);
     }
 
     @Override
     public VoxelShape getVisualShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        Direction facing = state.getValue(FACING);
-        int layers = state.getValue(LAYERS);
-        return SHAPES[facing.ordinal()][layers];
+        return getShape(state, level, pos, context);
     }
 
     @Override
@@ -243,10 +230,9 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
 
     @Override
     public boolean isPathfindable(BlockState state, BlockGetter level, BlockPos pos, PathComputationType type) {
-        if (type == PathComputationType.LAND) {
-            return state.getValue(FACING) == Direction.UP && state.getValue(LAYERS) < 5;
-        }
-        return false;
+        return type == PathComputationType.LAND &&
+                state.getValue(FACING) == Direction.UP &&
+                state.getValue(LAYERS) < 5;
     }
 
     @Override
@@ -256,20 +242,18 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         Direction clickedFace = context.getClickedFace();
         Player player = context.getPlayer();
 
-        // If clicking on an existing layer block with same facing, try to add layers
+        // If clicking on existing layer, try to add layers
         if (existingState.is(this)) {
             Direction existingFacing = existingState.getValue(FACING);
             int currentLayers = existingState.getValue(LAYERS);
 
-            // Only stack if same facing and clicked on the layer growth direction
             if (existingFacing == clickedFace && currentLayers < 8) {
-                // Play sound when adding a layer
                 if (!context.getLevel().isClientSide) {
                     BlockEntity be = context.getLevel().getBlockEntity(pos);
                     if (be instanceof CopyBlockEntity copyBE) {
                         BlockState copiedState = copyBE.getCopiedBlock();
                         if (!copiedState.isAir()) {
-                            playBlockSound(context.getLevel(), pos, copiedState);
+                            copyblock$playBlockSound(context.getLevel(), pos, copiedState);
                         }
                     }
                 }
@@ -277,27 +261,20 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
             }
         }
 
-        // New placement - Mix of clicked face and player look angle (like Copycats)
+        // New placement logic (mix of clicked face and player look angle)
         Direction facing = clickedFace;
-
         if (player != null) {
             float pitch = player.getXRot();
             Direction horizontalFacing = context.getHorizontalDirection();
 
             if (clickedFace.getAxis().isVertical()) {
-                // Clicking top/bottom - check if looking from the side
                 if (Math.abs(pitch) < 45) {
-                    // Looking horizontally - place vertical layer growing toward player
                     facing = horizontalFacing.getOpposite();
                 }
             } else {
-                // Clicking a side
                 if (Math.abs(pitch) > 45) {
-                    // Looking up/down at angle - place horizontal layer growing toward player
                     facing = pitch > 0 ? Direction.DOWN : Direction.UP;
                 } else {
-                    // Looking horizontally at a side - place based on which axis
-                    // Place perpendicular layer growing toward player
                     Direction clickedAxis = clickedFace.getAxis() == Direction.Axis.X ?
                             (horizontalFacing.getAxis() == Direction.Axis.Z ? horizontalFacing.getOpposite() : clickedFace) :
                             (horizontalFacing.getAxis() == Direction.Axis.X ? horizontalFacing.getOpposite() : clickedFace);
@@ -309,35 +286,17 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         return this.defaultBlockState().setValue(FACING, facing);
     }
 
-    // ========== SOUND HELPER ==========
-    protected void playBlockSound(Level level, BlockPos pos, BlockState copiedState) {
-        if (!level.isClientSide && !copiedState.isAir()) {
-            SoundType soundType = copiedState.getSoundType(level, pos, null);
-            level.playSound(
-                    null,
-                    pos,
-                    soundType.getPlaceSound(),
-                    net.minecraft.sounds.SoundSource.BLOCKS,
-                    (soundType.getVolume() + 1.0F) / 2.0F,
-                    soundType.getPitch() * 0.8F
-            );
-        }
-    }
-
     @Override
     public boolean canBeReplaced(BlockState state, BlockPlaceContext context) {
-        // If player is sneaking, don't allow replacing (forces new placement)
         if (context.getPlayer() != null && context.getPlayer().isShiftKeyDown()) {
             return false;
         }
 
-        // Allow replacing if not full (8 layers) and using the same item
         if (context.getItemInHand().getItem() == this.asItem()) {
             if (state.getValue(LAYERS) < 8) {
                 Direction stateFacing = state.getValue(FACING);
                 Direction clickedFace = context.getClickedFace();
 
-                // Can stack if clicking on the same face that the layers are facing
                 if (stateFacing == clickedFace) {
                     return context.replacingClickedOnBlock();
                 }
@@ -356,11 +315,9 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         return state.rotate(mirror.getRotation(state.getValue(FACING)));
     }
 
-    // ========== INTERACTION ==========
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos,
                                  Player player, InteractionHand hand, BlockHitResult hit) {
-
         if (level.isClientSide) return InteractionResult.SUCCESS;
 
         BlockEntity blockEntity = level.getBlockEntity(pos);
@@ -369,21 +326,20 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         ItemStack heldItem = player.getItemInHand(hand);
         BlockState currentCopied = copyBlockEntity.getCopiedBlock();
 
-        // If holding a layer block with shift, don't do anything (let placement happen)
+        // If holding layer block with shift, let placement happen
         if (player.isShiftKeyDown() && heldItem.getItem() == this.asItem()) {
             return InteractionResult.PASS;
         }
 
-        // Shift + empty hand (creative only) = remove copied block (no drop)
+        // Shift + empty hand (creative only) = remove
         if (player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir() && player.isCreative()) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
             state.updateNeighbourShapes(level, pos, Block.UPDATE_ALL);
             level.updateNeighborsAt(pos, state.getBlock());
-
             return InteractionResult.SUCCESS;
         }
 
-        // Place block in empty CopyBlock
+        // Place block
         if (heldItem.getItem() instanceof BlockItem blockItem) {
             Block targetBlock = blockItem.getBlock();
             if (targetBlock instanceof ICopyBlock) return InteractionResult.FAIL;
@@ -393,15 +349,13 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
 
             if (!currentCopied.isAir()) {
                 if (currentCopied.getBlock() == targetBlock) {
-                    // Already has this block, just update rotation (no sound)
                     copyBlockEntity.setCopiedBlock(targetState);
                     return InteractionResult.SUCCESS;
                 } else return InteractionResult.FAIL;
             } else {
-                // First time placing a block - play sound
                 if (!player.isCreative()) heldItem.shrink(1);
                 copyBlockEntity.setCopiedBlock(targetState);
-                playBlockSound(level, pos, targetState);
+                copyblock$playBlockSound(level, pos, targetState);
                 return InteractionResult.SUCCESS;
             }
         }
@@ -411,50 +365,19 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
 
     @Override
     public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
-        // Creative middle-click with shift: give the copied block
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof CopyBlockEntity copyBE) {
-            BlockState copiedState = copyBE.getCopiedBlock();
-            if (!copiedState.isAir()) {
-                try {
-                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                    if (mc.player != null && mc.player.isShiftKeyDown()) {
-                        return new ItemStack(copiedState.getBlock());
-                    }
-                } catch (Exception e) {
-                    // Server side or error, just return default
-                }
-            }
-        }
-        // Default: give the CopyBlock itself
-        return super.getCloneItemStack(level, pos, state);
+        ItemStack result = copyblock$getCloneItemStack(level, pos, state);
+        return result.isEmpty() ? super.getCloneItemStack(level, pos, state) : result;
     }
 
-    // ========== DROPS FIX ==========
     @Override
-    public void onRemove(BlockState state, Level level, BlockPos pos,
-                         BlockState newState, boolean isMoving) {
-        if (!state.is(newState.getBlock()) && !level.isClientSide) {
-            BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity instanceof CopyBlockEntity be) {
-                BlockState copiedState = be.getCopiedBlock();
-                if (!copiedState.isAir() && !be.wasRemovedByCreative()) {
-                    ItemStack droppedItem = new ItemStack(copiedState.getBlock());
-                    droppedItem.setTag(null);
-                    level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5,
-                            pos.getY() + 0.5, pos.getZ() + 0.5, droppedItem));
-                }
-            }
-        }
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        copyblock$onRemove(state, level, pos, newState, isMoving);
         super.onRemove(state, level, pos, newState, isMoving);
     }
 
     @Override
     public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
-        BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity instanceof CopyBlockEntity copyBlockEntity) {
-            if (player.isCreative()) copyBlockEntity.setRemovedByCreative(true);
-        }
+        copyblock$playerWillDestroy(level, pos, state, player);
         super.playerWillDestroy(level, pos, state, player);
     }
 }

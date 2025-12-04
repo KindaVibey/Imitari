@@ -4,6 +4,7 @@ import com.vibey.imitari.block.ICopyBlock;
 import com.vibey.imitari.blockentity.CopyBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -13,20 +14,25 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * Injects dynamic destroy speed based on copied block.
+ *
+ * FIXED: Used proper method signature for getDestroySpeed
+ */
 @Mixin(BlockBehaviour.BlockStateBase.class)
 public abstract class BlockStateDestroySpeedMixin {
 
     @Shadow
-    public abstract net.minecraft.world.level.block.Block m_60734_();
+    public abstract Block getBlock();
 
-    @Inject(method = "m_60800_", at = @At("HEAD"), cancellable = true)
-    private void imitari$getDynamicDestroySpeed(BlockGetter p_60801_, BlockPos p_60802_, CallbackInfoReturnable<Float> cir) {
-        if (!(this.m_60734_() instanceof ICopyBlock)) {
+    @Inject(method = "getDestroySpeed", at = @At("HEAD"), cancellable = true)
+    private void imitari$getDynamicDestroySpeed(BlockGetter level, BlockPos pos, CallbackInfoReturnable<Float> cir) {
+        if (!(this.getBlock() instanceof ICopyBlock)) {
             return;
         }
 
         try {
-            BlockEntity be = p_60801_.getBlockEntity(p_60802_);
+            BlockEntity be = level.getBlockEntity(pos);
             if (!(be instanceof CopyBlockEntity copyBE)) {
                 return;
             }
@@ -38,14 +44,14 @@ public abstract class BlockStateDestroySpeedMixin {
                 return;
             }
 
-            float baseSpeed = copiedState.getDestroySpeed(p_60801_, p_60802_);
+            float baseSpeed = copiedState.getDestroySpeed(level, pos);
 
             if (baseSpeed < 0.0f) {
                 cir.setReturnValue(baseSpeed);
                 return;
             }
 
-            ICopyBlock copyBlock = (ICopyBlock) this.m_60734_();
+            ICopyBlock copyBlock = (ICopyBlock) this.getBlock();
             float multipliedSpeed = baseSpeed * copyBlock.getMassMultiplier();
 
             cir.setReturnValue(multipliedSpeed);

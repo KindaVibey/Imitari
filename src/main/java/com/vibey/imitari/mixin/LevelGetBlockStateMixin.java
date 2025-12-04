@@ -13,17 +13,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Captures context when BlockStates are retrieved from the world.
  * Updated to check for ICopyBlock interface.
+ *
+ * FIXED: Made methods public to work with interface mixins
  */
 @Mixin(Level.class)
 public abstract class LevelGetBlockStateMixin {
 
-    @Inject(method = "m_8055_", at = @At("HEAD"))
-    private void imitari$captureContextBefore(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
+    @Inject(method = "getBlockState", at = @At("HEAD"))
+    public void imitari$captureContextBefore(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
         CopyBlockContext.push((Level)(Object)this, pos);
     }
 
-    @Inject(method = "m_8055_", at = @At("RETURN"))
-    private void imitari$captureContextAfter(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
+    @Inject(method = "getBlockState", at = @At("RETURN"))
+    public void imitari$captureContextAfter(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
         BlockState state = cir.getReturnValue();
 
         // If it's NOT implementing ICopyBlock, pop immediately
