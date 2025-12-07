@@ -8,9 +8,11 @@
     "LevelGetBlockStateMixin",
     "BlockStateDestroySpeedMixin"
   ],
+  "client": [
+    "compat.modernfix.ExcludeImitariBlocksMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   },
-  "minVersion": "0.8",
-  "priority": 900
+  "minVersion": "0.8"
 }
