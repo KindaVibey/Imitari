@@ -8,9 +8,6 @@
     "LevelGetBlockStateMixin",
     "BlockStateDestroySpeedMixin"
   ],
-  "client": [
-    "compat.modernfix.ExcludeImitariBlocksMixin"
-  ],
   "injectors": {
     "defaultRequire": 1
   },
