@@ -49,6 +49,9 @@ public class CopyBlockEntity extends BlockEntity {
     }
 
     public void setCopiedBlock(BlockState newBlock) {
+        System.out.println("[Imitari DEBUG] setCopiedBlock called! isClientSide=" +
+                (level != null ? level.isClientSide : "level is null"));
+
         BlockState oldBlock = this.copiedBlock;
 
         // If it's the same block, rotate it
@@ -63,29 +66,26 @@ public class CopyBlockEntity extends BlockEntity {
         setChanged();
 
         if (level != null && !level.isClientSide) {
-            // NEW: Use the VS2 dynamic mass system
-            try {
-                com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockMass(
-                        level, worldPosition, getBlockState()
-                );
-            } catch (NoClassDefFoundError e) {
-                // VS2 not installed, that's fine
-            } catch (Exception e) {
-                System.err.println("[Imitari] Error updating VS2 mass:");
-                e.printStackTrace();
-            }
+            System.out.println("[Imitari] ========== setCopiedBlock SERVER SIDE START ==========");
+            System.out.println("[Imitari] Position: " + worldPosition);
+            System.out.println("[Imitari] Old: " + (oldBlock.isAir() ? "AIR" : oldBlock.getBlock().getName().getString()));
+            System.out.println("[Imitari] New: " + (newBlock.isAir() ? "AIR" : newBlock.getBlock().getName().getString()));
+
+            // Call VS2 integration WITHOUT try-catch so we see any errors
+            System.out.println("[Imitari] About to call VS2CopyBlockIntegration.updateCopyBlockMass...");
+            com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockMass(
+                    level, worldPosition, getBlockState()
+            );
+            System.out.println("[Imitari] VS2 call completed (or threw exception above)");
 
             // Send update packet to all clients
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
                     Block.UPDATE_ALL);
             level.updateNeighborsAt(worldPosition, getBlockState().getBlock());
 
-            // Log the change
-            if (!oldBlock.is(newBlock.getBlock())) {
-                System.out.println("[Imitari] Texture changed at " + worldPosition +
-                        ": " + (oldBlock.isAir() ? "EMPTY" : oldBlock.getBlock().getName().getString()) +
-                        " -> " + (newBlock.isAir() ? "EMPTY" : newBlock.getBlock().getName().getString()));
-            }
+            System.out.println("[Imitari] ========== setCopiedBlock END ==========");
+        } else {
+            System.out.println("[Imitari DEBUG] Skipping VS2 - either client side or level is null");
         }
     }
 
