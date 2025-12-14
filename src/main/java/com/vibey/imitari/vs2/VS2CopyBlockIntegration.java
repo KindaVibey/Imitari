@@ -15,60 +15,25 @@ import org.jetbrains.annotations.Nullable;
 import org.valkyrienskies.core.apigame.world.chunks.BlockType;
 import org.valkyrienskies.mod.common.BlockStateInfo;
 import org.valkyrienskies.mod.common.BlockStateInfoProvider;
+import org.valkyrienskies.mod.common.VSGameUtilsKt;
 import org.valkyrienskies.physics_api.voxel.Lod1LiquidBlockState;
 import org.valkyrienskies.physics_api.voxel.Lod1SolidBlockState;
 
 import java.util.Collections;
 import java.util.List;
 
-/**
- * VS2 Integration - Provider that returns current CopyBlock mass.
- */
 public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
     public static final VS2CopyBlockIntegration INSTANCE = new VS2CopyBlockIntegration();
 
-    // ThreadLocal to pass context from updateCopyBlockMass to getBlockStateMass
-    private static final ThreadLocal<Level> CURRENT_LEVEL = new ThreadLocal<>();
-    private static final ThreadLocal<BlockPos> CURRENT_POS = new ThreadLocal<>();
-
-    private VS2CopyBlockIntegration() {}
-
     @Override
     public int getPriority() {
-        return 200; // Higher than default
+        return 200;
     }
 
     @Nullable
     @Override
     public Double getBlockStateMass(BlockState blockState) {
-        if (!(blockState.getBlock() instanceof ICopyBlock copyBlock)) {
-            return null;
-        }
-
-        Level level = CURRENT_LEVEL.get();
-        BlockPos pos = CURRENT_POS.get();
-
-        if (level == null || pos == null) {
-            return null;
-        }
-
-        BlockEntity be = level.getBlockEntity(pos);
-        if (!(be instanceof CopyBlockEntity copyBE)) {
-            return null;
-        }
-
-        BlockState copiedState = copyBE.getCopiedBlock();
-        if (copiedState.isAir()) {
-            return 10.0; // Empty frame
-        }
-
-        // Get mass of copied block
-        Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(copiedState);
-        if (blockInfo != null && blockInfo.getFirst() != null) {
-            return blockInfo.getFirst() * copyBlock.getMassMultiplier();
-        }
-
-        return 50.0 * copyBlock.getMassMultiplier();
+        return null;
     }
 
     @Nullable
@@ -92,23 +57,41 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
         return Collections.emptyList();
     }
 
-    /**
-     * Call this when CopyBlock's copied block changes.
-     * Sets context and triggers VS2's onSetBlock.
-     */
     public static void updateCopyBlockMass(Level level, BlockPos pos, BlockState copyBlockState) {
         if (level.isClientSide) return;
 
-        // Set context so getBlockStateMass can access the BlockEntity
-        CURRENT_LEVEL.set(level);
-        CURRENT_POS.set(pos.immutable());
+        BlockEntity be = level.getBlockEntity(pos);
+        if (!(be instanceof CopyBlockEntity copyBE)) return;
+        if (!(copyBlockState.getBlock() instanceof ICopyBlock copyBlock)) return;
 
-        try {
-            // Call VS2's onSetBlock - it will query our provider for the new mass
-            BlockStateInfo.INSTANCE.onSetBlock(level, pos, copyBlockState, copyBlockState);
-        } finally {
-            CURRENT_LEVEL.remove();
-            CURRENT_POS.remove();
+        BlockState copiedState = copyBE.getCopiedBlock();
+
+        // Calculate mass
+        double mass;
+        if (copiedState.isAir()) {
+            mass = 10.0;
+        } else {
+            Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedState);
+            mass = (info != null && info.getFirst() != null)
+                    ? info.getFirst() * copyBlock.getMassMultiplier()
+                    : 50.0 * copyBlock.getMassMultiplier();
+        }
+
+        // Get block type
+        Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(copyBlockState);
+        if (blockInfo == null) return;
+
+        // Update VS2
+        var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
+        if (shipWorld != null) {
+            shipWorld.onSetBlock(
+                    pos.getX(), pos.getY(), pos.getZ(),
+                    VSGameUtilsKt.getDimensionId(level),
+                    blockInfo.getSecond(),
+                    blockInfo.getSecond(),
+                    blockInfo.getFirst(),
+                    mass
+            );
         }
     }
 

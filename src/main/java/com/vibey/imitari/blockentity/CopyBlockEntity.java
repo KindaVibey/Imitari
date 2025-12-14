@@ -71,12 +71,12 @@ public class CopyBlockEntity extends BlockEntity {
             System.out.println("[Imitari] Old: " + (oldBlock.isAir() ? "AIR" : oldBlock.getBlock().getName().getString()));
             System.out.println("[Imitari] New: " + (newBlock.isAir() ? "AIR" : newBlock.getBlock().getName().getString()));
 
-            // Call VS2 integration WITHOUT try-catch so we see any errors
+            // Call VS2 integration to update mass
             System.out.println("[Imitari] About to call VS2CopyBlockIntegration.updateCopyBlockMass...");
             com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockMass(
                     level, worldPosition, getBlockState()
             );
-            System.out.println("[Imitari] VS2 call completed (or threw exception above)");
+            System.out.println("[Imitari] VS2 call completed");
 
             // Send update packet to all clients
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
