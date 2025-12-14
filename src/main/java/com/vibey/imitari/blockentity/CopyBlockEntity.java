@@ -52,7 +52,7 @@ public class CopyBlockEntity extends BlockEntity {
         System.out.println("[Imitari DEBUG] setCopiedBlock called! isClientSide=" +
                 (level != null ? level.isClientSide : "level is null"));
 
-        BlockState oldBlock = this.copiedBlock;
+        BlockState oldCopiedBlock = this.copiedBlock;  // SAVE OLD COPIED BLOCK
 
         // If it's the same block, rotate it
         if (!copiedBlock.isAir() && !newBlock.isAir() && copiedBlock.getBlock() == newBlock.getBlock()) {
@@ -68,13 +68,13 @@ public class CopyBlockEntity extends BlockEntity {
         if (level != null && !level.isClientSide) {
             System.out.println("[Imitari] ========== setCopiedBlock SERVER SIDE START ==========");
             System.out.println("[Imitari] Position: " + worldPosition);
-            System.out.println("[Imitari] Old: " + (oldBlock.isAir() ? "AIR" : oldBlock.getBlock().getName().getString()));
+            System.out.println("[Imitari] Old: " + (oldCopiedBlock.isAir() ? "AIR" : oldCopiedBlock.getBlock().getName().getString()));
             System.out.println("[Imitari] New: " + (newBlock.isAir() ? "AIR" : newBlock.getBlock().getName().getString()));
 
-            // Call VS2 integration to update mass
+            // Call VS2 integration to update mass - PASS OLD COPIED BLOCK
             System.out.println("[Imitari] About to call VS2CopyBlockIntegration.updateCopyBlockMass...");
             com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockMass(
-                    level, worldPosition, getBlockState()
+                    level, worldPosition, getBlockState(), oldCopiedBlock
             );
             System.out.println("[Imitari] VS2 call completed");
 

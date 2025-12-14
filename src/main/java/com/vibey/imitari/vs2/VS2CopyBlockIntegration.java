@@ -25,6 +25,8 @@ import java.util.List;
 public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
     public static final VS2CopyBlockIntegration INSTANCE = new VS2CopyBlockIntegration();
 
+    private static final double EMPTY_COPY_BLOCK_MASS = 10.0;
+
     @Override
     public int getPriority() {
         return 200;
@@ -33,6 +35,12 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
     @Nullable
     @Override
     public Double getBlockStateMass(BlockState blockState) {
+        // If this is a copy block, return its mass based on what it's copying
+        if (blockState.getBlock() instanceof ICopyBlock copyBlock) {
+            // We can't access the block entity here, so return the empty mass
+            // The actual mass will be set via updateCopyBlockMass
+            return EMPTY_COPY_BLOCK_MASS;
+        }
         return null;
     }
 
@@ -57,31 +65,40 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
         return Collections.emptyList();
     }
 
-    public static void updateCopyBlockMass(Level level, BlockPos pos, BlockState copyBlockState) {
+    public static void updateCopyBlockMass(Level level, BlockPos pos, BlockState copyBlockState, BlockState oldCopiedBlock) {
         if (level.isClientSide) return;
 
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof CopyBlockEntity copyBE)) return;
         if (!(copyBlockState.getBlock() instanceof ICopyBlock copyBlock)) return;
 
-        BlockState copiedState = copyBE.getCopiedBlock();
+        BlockState newCopiedBlock = copyBE.getCopiedBlock();
 
-        // Calculate mass
-        double mass;
-        if (copiedState.isAir()) {
-            mass = 10.0;
+        // Calculate what the OLD mass was
+        double oldMass;
+        if (oldCopiedBlock == null || oldCopiedBlock.isAir()) {
+            oldMass = EMPTY_COPY_BLOCK_MASS;
         } else {
-            Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedState);
-            mass = (info != null && info.getFirst() != null)
-                    ? info.getFirst() * copyBlock.getMassMultiplier()
-                    : 50.0 * copyBlock.getMassMultiplier();
+            Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(oldCopiedBlock);
+            double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
+            oldMass = copiedMass * copyBlock.getMassMultiplier();
         }
 
-        // Get block type
+        // Calculate what the NEW mass should be
+        double newMass;
+        if (newCopiedBlock == null || newCopiedBlock.isAir()) {
+            newMass = EMPTY_COPY_BLOCK_MASS;
+        } else {
+            Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(newCopiedBlock);
+            double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
+            newMass = copiedMass * copyBlock.getMassMultiplier();
+        }
+
+        // Get block type info
         Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(copyBlockState);
         if (blockInfo == null) return;
 
-        // Update VS2
+        // Update VS2 - this tells VS2 to change the mass from oldMass to newMass
         var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
         if (shipWorld != null) {
             shipWorld.onSetBlock(
@@ -89,8 +106,8 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
                     VSGameUtilsKt.getDimensionId(level),
                     blockInfo.getSecond(),
                     blockInfo.getSecond(),
-                    blockInfo.getFirst(),
-                    mass
+                    oldMass,
+                    newMass
             );
         }
     }
