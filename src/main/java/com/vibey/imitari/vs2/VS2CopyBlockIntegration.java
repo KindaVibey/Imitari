@@ -84,6 +84,10 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
         return Collections.emptyList();
     }
 
+    /**
+     * Called when the player manually changes what a CopyBlock is copying.
+     * This tells VS2 to change the mass from the old copied block to the new one.
+     */
     public static void updateCopyBlockMass(Level level, BlockPos pos, BlockState copyBlockState, BlockState oldCopiedBlock) {
         if (level.isClientSide) return;
 
@@ -113,6 +117,8 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
             newMass = copiedMass * copyBlock.getMassMultiplier();
         }
 
+        System.out.println("[Imitari VS2] updateCopyBlockMass - Old: " + oldMass + " -> New: " + newMass);
+
         // Get block type info - use context to help getBlockStateMass work
         CURRENT_LEVEL.set(level);
         CURRENT_POS.set(pos);
@@ -132,6 +138,52 @@ public class VS2CopyBlockIntegration implements BlockStateInfoProvider {
                         newMass
                 );
             }
+        } finally {
+            CURRENT_LEVEL.remove();
+            CURRENT_POS.remove();
+        }
+    }
+
+    /**
+     * Called from CopyBlockEntity when NBT data is loaded.
+     * This is CRITICAL for ship assembly - VS2 loads the block first (getting EMPTY_COPY_BLOCK_MASS),
+     * then loads the BlockEntity data from NBT. We need to update VS2 at that point.
+     */
+    public static void onBlockEntityDataLoaded(Level level, BlockPos pos, BlockState state, BlockState copiedBlock) {
+        if (level == null || level.isClientSide) return;
+        if (!(state.getBlock() instanceof ICopyBlock copyBlock)) return;
+
+        // Only update if we actually have copied content
+        if (copiedBlock == null || copiedBlock.isAir()) return;
+
+        // Check if we're in a shipyard (VS2 dimension)
+        var shipObjectWorld = VSGameUtilsKt.getShipObjectWorld(level);
+        if (shipObjectWorld == null) return;
+
+        // Calculate the correct mass
+        Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
+        double copiedMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
+        double correctMass = copiedMass * copyBlock.getMassMultiplier();
+
+        System.out.println("[Imitari VS2] BlockEntity loaded with copied data! Updating mass from " +
+                EMPTY_COPY_BLOCK_MASS + " to " + correctMass);
+
+        // Get block type
+        CURRENT_LEVEL.set(level);
+        CURRENT_POS.set(pos);
+        try {
+            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
+            if (blockInfo == null) return;
+
+            // Tell VS2 to update from empty mass to correct mass
+            shipObjectWorld.onSetBlock(
+                    pos.getX(), pos.getY(), pos.getZ(),
+                    VSGameUtilsKt.getDimensionId(level),
+                    blockInfo.getSecond(),
+                    blockInfo.getSecond(),
+                    EMPTY_COPY_BLOCK_MASS,  // What VS2 initially calculated
+                    correctMass              // What it should actually be
+            );
         } finally {
             CURRENT_LEVEL.remove();
             CURRENT_POS.remove();

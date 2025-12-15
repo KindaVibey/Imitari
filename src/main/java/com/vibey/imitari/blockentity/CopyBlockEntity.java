@@ -108,6 +108,8 @@ public class CopyBlockEntity extends BlockEntity {
                 .build();
     }
 
+    // Add this to your CopyBlockEntity.java load() method:
+
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
@@ -147,6 +149,16 @@ public class CopyBlockEntity extends BlockEntity {
         }
 
         this.virtualRotation = tag.getInt("VirtualRotation");
+
+        // CRITICAL: If we just loaded NBT data with copied block content, notify VS2
+        // This handles ship assembly where VS2 queries mass before BlockEntity NBT is loaded
+        if (level != null && !level.isClientSide && !this.copiedBlock.isAir()) {
+            System.out.println("[Imitari] BlockEntity.load() detected copied block: " +
+                    this.copiedBlock.getBlock().getName().getString());
+            com.vibey.imitari.vs2.VS2CopyBlockIntegration.onBlockEntityDataLoaded(
+                    level, worldPosition, getBlockState(), this.copiedBlock
+            );
+        }
 
         if (level != null && level.isClientSide) {
             requestModelDataUpdate();
