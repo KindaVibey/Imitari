@@ -1,5 +1,7 @@
 package com.vibey.imitari.blockentity;
 
+import com.vibey.imitari.api.ICopyBlock;
+import com.vibey.imitari.api.blockentity.ICopyBlockEntity;
 import com.vibey.imitari.client.ClientEventsHandler;
 import com.vibey.imitari.client.CopyBlockModel;
 import com.vibey.imitari.registry.ModBlockEntities;
@@ -21,7 +23,8 @@ import net.minecraftforge.fml.DistExecutor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class CopyBlockEntity extends BlockEntity {
+// CRITICAL: Must implement ICopyBlockEntity for the API to work!
+public class CopyBlockEntity extends BlockEntity implements ICopyBlockEntity {
 
     private BlockState copiedBlock = Blocks.AIR.defaultBlockState();
     private int virtualRotation = 0;
@@ -31,26 +34,34 @@ public class CopyBlockEntity extends BlockEntity {
         super(ModBlockEntities.COPY_BLOCK_ENTITY.get(), pos, blockState);
     }
 
+    // ==================== ICOPYBLOCKENTITY IMPLEMENTATION ====================
+
+    @Override
     public BlockState getCopiedBlock() {
         return copiedBlock;
     }
 
+    @Override
     public int getVirtualRotation() {
         return virtualRotation;
     }
 
+    @Override
     public boolean wasRemovedByCreative() {
         return removedByCreative;
     }
 
+    @Override
     public void setRemovedByCreative(boolean value) {
         this.removedByCreative = value;
     }
 
-    /**
-     * Force a model/texture refresh. Call this whenever the block shape changes
-     * (like slab -> double slab) to ensure textures update properly.
-     */
+    @Override
+    public boolean hasCopiedBlock() {
+        return !copiedBlock.isAir();
+    }
+
+    @Override
     public void forceModelRefresh() {
         if (level != null) {
             requestModelDataUpdate();
@@ -72,10 +83,8 @@ public class CopyBlockEntity extends BlockEntity {
         }
     }
 
+    @Override
     public void setCopiedBlock(BlockState newBlock) {
-        System.out.println("[Imitari DEBUG] setCopiedBlock called! isClientSide=" +
-                (level != null ? level.isClientSide : "level is null"));
-
         BlockState oldCopiedBlock = this.copiedBlock;  // SAVE OLD COPIED BLOCK
 
         // If it's the same block, rotate it
@@ -90,35 +99,22 @@ public class CopyBlockEntity extends BlockEntity {
         setChanged();
 
         if (level != null && !level.isClientSide) {
-            System.out.println("[Imitari] ========== setCopiedBlock SERVER SIDE START ==========");
-            System.out.println("[Imitari] Position: " + worldPosition);
-            System.out.println("[Imitari] Old: " + (oldCopiedBlock.isAir() ? "AIR" : oldCopiedBlock.getBlock().getName().getString()));
-            System.out.println("[Imitari] New: " + (newBlock.isAir() ? "AIR" : newBlock.getBlock().getName().getString()));
-
             // Call VS2 integration to update mass - PASS OLD COPIED BLOCK
-            System.out.println("[Imitari] About to call VS2CopyBlockIntegration.updateCopyBlockMass...");
             com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockMass(
                     level, worldPosition, getBlockState(), oldCopiedBlock
             );
-            System.out.println("[Imitari] VS2 call completed");
 
             // Send update packet to all clients
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
                     Block.UPDATE_ALL);
             level.updateNeighborsAt(worldPosition, getBlockState().getBlock());
-
-            System.out.println("[Imitari] ========== setCopiedBlock END ==========");
-        } else {
-            System.out.println("[Imitari DEBUG] Skipping VS2 - either client side or level is null");
         }
     }
 
+    // ==================== INTERNAL METHODS ====================
+
     private void rotateBlock() {
         virtualRotation = (virtualRotation + 1) % 3;
-    }
-
-    public boolean hasCopiedBlock() {
-        return !copiedBlock.isAir();
     }
 
     @NotNull
@@ -133,8 +129,6 @@ public class CopyBlockEntity extends BlockEntity {
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
-
-        BlockState oldCopied = this.copiedBlock;
 
         if (tag.contains("CopiedBlockId")) {
             try {
@@ -173,8 +167,6 @@ public class CopyBlockEntity extends BlockEntity {
         // CRITICAL: If we just loaded NBT data with copied block content, notify VS2
         // This handles ship assembly where VS2 queries mass before BlockEntity NBT is loaded
         if (level != null && !level.isClientSide && !this.copiedBlock.isAir()) {
-            System.out.println("[Imitari] BlockEntity.load() detected copied block: " +
-                    this.copiedBlock.getBlock().getName().getString());
             com.vibey.imitari.vs2.VS2CopyBlockIntegration.onBlockEntityDataLoaded(
                     level, worldPosition, getBlockState(), this.copiedBlock
             );
@@ -187,9 +179,6 @@ public class CopyBlockEntity extends BlockEntity {
 
     @Override
     public void handleUpdateTag(CompoundTag tag) {
-        BlockState oldState = this.copiedBlock;
-        int oldRotation = this.virtualRotation;
-
         load(tag);
 
         if (level != null && level.isClientSide) {
@@ -230,8 +219,6 @@ public class CopyBlockEntity extends BlockEntity {
     public void onDataPacket(net.minecraft.network.Connection net, ClientboundBlockEntityDataPacket pkt) {
         CompoundTag tag = pkt.getTag();
         if (tag != null) {
-            BlockState oldCopied = this.copiedBlock;
-
             handleUpdateTag(tag);
 
             if (level != null && level.isClientSide) {
@@ -242,13 +229,6 @@ public class CopyBlockEntity extends BlockEntity {
 
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
                         Block.UPDATE_ALL_IMMEDIATE);
-
-                if (!oldCopied.isAir() && this.copiedBlock.isAir()) {
-                    DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-                        ClientEventsHandler.queueBlockUpdate(worldPosition);
-                        ClientEventsHandler.queueBlockUpdate(worldPosition);
-                    });
-                }
             }
         }
     }

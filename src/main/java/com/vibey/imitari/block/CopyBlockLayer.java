@@ -38,6 +38,8 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Layer block that can stack in 8 vertical layers (1/8 block each).
  * Can be placed on any face. Base multiplier is 0.125f per layer.
+ *
+ * FIXED: Now notifies VS2 when layers change so mass updates correctly!
  */
 public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
@@ -253,7 +255,17 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
                         }
                     }
                 }
-                return existingState.setValue(LAYERS, Math.min(8, currentLayers + 1));
+
+                BlockState newState = existingState.setValue(LAYERS, Math.min(8, currentLayers + 1));
+
+                // CRITICAL: Notify VS2 that layers changed!
+                if (!context.getLevel().isClientSide) {
+                    com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockState(
+                            context.getLevel(), pos, existingState, newState
+                    );
+                }
+
+                return newState;
             }
         }
 

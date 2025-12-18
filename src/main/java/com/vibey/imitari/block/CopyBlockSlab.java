@@ -1,10 +1,13 @@
 package com.vibey.imitari.block;
 
-import com.vibey.imitari.block.base.CopyBlockBase;
+import com.vibey.imitari.api.ICopyBlock;
 import com.vibey.imitari.blockentity.CopyBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
@@ -12,12 +15,15 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.SlabType;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -25,17 +31,37 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Slab-sized CopyBlock variant (0.5x multiplier).
- * Now uses the simplified delegation system without mass properties.
  */
-public class CopyBlockSlab extends CopyBlockBase {
+public class CopyBlockSlab extends Block implements EntityBlock, ICopyBlock {
     protected static final VoxelShape BOTTOM_SHAPE = Block.box(0, 0, 0, 16, 8, 16);
     protected static final VoxelShape TOP_SHAPE = Block.box(0, 8, 0, 16, 16, 16);
 
     public CopyBlockSlab(Properties properties) {
-        super(properties, 0.5f);
+        super(properties);
         this.registerDefaultState(this.stateDefinition.any()
                 .setValue(BlockStateProperties.SLAB_TYPE, SlabType.BOTTOM));
     }
+
+    @Override
+    public float getMassMultiplier() {
+        return 0.5f;
+    }
+
+    // ==================== INTERACTION (CRITICAL FIX) ====================
+
+    @Override
+    public InteractionResult use(BlockState state, Level level, BlockPos pos,
+                                 Player player, InteractionHand hand, BlockHitResult hit) {
+        // IMPORTANT: Don't delegate if we're about to place a slab (canBeReplaced will handle that)
+        if (canBeReplaced(state, new BlockPlaceContext(player, hand, player.getItemInHand(hand), hit))) {
+            return InteractionResult.PASS; // Let vanilla placement happen
+        }
+
+        // Otherwise, delegate to ICopyBlock for block placement/removal
+        return copyblock$use(state, level, pos, player, hand, hit);
+    }
+
+    // ==================== REST OF THE CLASS ====================
 
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, @javax.annotation.Nullable net.minecraft.world.entity.LivingEntity placer, ItemStack stack) {
@@ -47,31 +73,28 @@ public class CopyBlockSlab extends CopyBlockBase {
             if (be instanceof CopyBlockEntity copyBE) {
                 SlabType type = state.getValue(BlockStateProperties.SLAB_TYPE);
 
-                System.out.println("[Imitari Slab] setPlacedBy called! Type: " + type);
-                System.out.println("[Imitari Slab] Current copied block: " +
-                        (copyBE.getCopiedBlock().isAir() ? "AIR" : copyBE.getCopiedBlock().getBlock().getName().getString()));
-
                 // Only clear if this is a newly placed SINGLE slab with no copied block yet
                 if (type != SlabType.DOUBLE && copyBE.getCopiedBlock().isAir()) {
-                    System.out.println("[Imitari Slab] Clearing copied block (new single slab)");
                     copyBE.setCopiedBlock(Blocks.AIR.defaultBlockState());
-                } else {
-                    System.out.println("[Imitari Slab] Preserving copied block!");
                 }
             }
         }
     }
 
     @Override
+    public RenderShape getRenderShape(BlockState state) {
+        return RenderShape.MODEL;
+    }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new CopyBlockEntity(pos, state);
+    }
+
+    @Override
     public SoundType getSoundType(BlockState state, LevelReader level, BlockPos pos, @Nullable Entity entity) {
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof CopyBlockEntity copyBE) {
-            BlockState copiedState = copyBE.getCopiedBlock();
-            if (!copiedState.isAir()) {
-                return copiedState.getSoundType(level, pos, entity);
-            }
-        }
-        return SoundType.WOOD;
+        return copyblock$getSoundType(state, level, pos, entity);
     }
 
     @Override
@@ -85,22 +108,27 @@ public class CopyBlockSlab extends CopyBlockBase {
         BlockState state = context.getLevel().getBlockState(pos);
 
         if (state.is(this)) {
-            System.out.println("[Imitari Slab] getStateForPlacement - converting to double slab");
-
             // Play sound when completing to double slab
             if (!context.getLevel().isClientSide) {
                 BlockEntity be = context.getLevel().getBlockEntity(pos);
                 if (be instanceof CopyBlockEntity copyBE) {
                     BlockState copiedState = copyBE.getCopiedBlock();
-                    System.out.println("[Imitari Slab] Before conversion, copied block: " +
-                            (copiedState.isAir() ? "AIR" : copiedState.getBlock().getName().getString()));
-
                     if (!copiedState.isAir()) {
                         playBlockSound(context.getLevel(), pos, copiedState);
                     }
                 }
             }
-            return state.setValue(BlockStateProperties.SLAB_TYPE, SlabType.DOUBLE);
+
+            BlockState newState = state.setValue(BlockStateProperties.SLAB_TYPE, SlabType.DOUBLE);
+
+            // CRITICAL: Notify VS2 that slab became double (mass changed!)
+            if (!context.getLevel().isClientSide) {
+                com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockState(
+                        context.getLevel(), pos, state, newState
+                );
+            }
+
+            return newState;
         }
 
         Direction facing = context.getClickedFace();
@@ -129,13 +157,8 @@ public class CopyBlockSlab extends CopyBlockBase {
     public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
         super.onPlace(state, level, pos, oldState, isMoving);
 
-        System.out.println("[Imitari Slab] onPlace called!");
-        System.out.println("[Imitari Slab] Old state: " + oldState);
-        System.out.println("[Imitari Slab] New state: " + state);
-
         // If we just changed from single to double slab (or vice versa), refresh the model
         if (!oldState.is(state.getBlock())) {
-            System.out.println("[Imitari Slab] Different block, ignoring");
             return; // Different block, not our concern
         }
 
@@ -143,15 +166,10 @@ public class CopyBlockSlab extends CopyBlockBase {
                 oldState.getValue(BlockStateProperties.SLAB_TYPE) : SlabType.BOTTOM;
         SlabType newType = state.getValue(BlockStateProperties.SLAB_TYPE);
 
-        System.out.println("[Imitari Slab] Old type: " + oldType + ", New type: " + newType);
-
         // If we went from single to double (or double to single), refresh textures
         if (oldType != newType) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof CopyBlockEntity copyBE) {
-                System.out.println("[Imitari Slab] Type changed! Copied block: " +
-                        (copyBE.getCopiedBlock().isAir() ? "AIR" : copyBE.getCopiedBlock().getBlock().getName().getString()));
-
                 if (level.isClientSide) {
                     // Client side - schedule model refresh for next tick
                     net.minecraft.client.Minecraft.getInstance().execute(() -> {
@@ -230,20 +248,19 @@ public class CopyBlockSlab extends CopyBlockBase {
 
     @Override
     public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof CopyBlockEntity copyBE) {
-            BlockState copiedState = copyBE.getCopiedBlock();
-            if (!copiedState.isAir()) {
-                try {
-                    net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                    if (mc.player != null && mc.player.isShiftKeyDown()) {
-                        return new ItemStack(copiedState.getBlock());
-                    }
-                } catch (Exception e) {
-                    // Server side or error
-                }
-            }
-        }
-        return super.getCloneItemStack(level, pos, state);
+        ItemStack result = copyblock$getCloneItemStack(level, pos, state);
+        return result.isEmpty() ? super.getCloneItemStack(level, pos, state) : result;
+    }
+
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        copyblock$onRemove(state, level, pos, newState, isMoving);
+        super.onRemove(state, level, pos, newState, isMoving);
+    }
+
+    @Override
+    public void playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        copyblock$playerWillDestroy(level, pos, state, player);
+        super.playerWillDestroy(level, pos, state, player);
     }
 }
