@@ -89,60 +89,6 @@ public class VS2CopyBlockIntegration {
     }
 
     /**
-     * Notify VS2 that a CopyBlock's state has changed (e.g., layers growing).
-     * This recalculates the mass based on the new state.
-     *
-     * @param level The world
-     * @param pos The block position
-     * @param oldState The old block state
-     * @param newState The new block state
-     */
-    public static void updateCopyBlockState(Level level, BlockPos pos,
-                                            BlockState oldState,
-                                            BlockState newState) {
-        if (!isAvailable()) {
-            return;
-        }
-
-        try {
-            Class<?> implClass = Class.forName("com.vibey.imitari.vs2.VS2CopyBlockIntegrationImpl");
-            var method = implClass.getMethod("updateCopyBlockState",
-                    Level.class, BlockPos.class, BlockState.class, BlockState.class);
-            method.invoke(null, level, pos, oldState, newState);
-        } catch (Exception e) {
-            System.err.println("[Imitari] Failed to update VS2 copy block state: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Notify VS2 that a CopyBlock is being removed/broken.
-     * This ensures the correct mass is subtracted.
-     *
-     * CRITICAL: Call this BEFORE the block is actually removed!
-     *
-     * @param level The world
-     * @param pos The block position
-     * @param oldState The state being removed
-     * @param newState The new state (often air)
-     */
-    public static void onBlockRemoved(Level level, BlockPos pos,
-                                      BlockState oldState,
-                                      BlockState newState) {
-        if (!isAvailable()) {
-            return;
-        }
-
-        try {
-            Class<?> implClass = Class.forName("com.vibey.imitari.vs2.VS2CopyBlockIntegrationImpl");
-            var method = implClass.getMethod("onBlockRemoved",
-                    Level.class, BlockPos.class, BlockState.class, BlockState.class);
-            method.invoke(null, level, pos, oldState, newState);
-        } catch (Exception e) {
-            System.err.println("[Imitari] Failed to notify VS2 of block removal: " + e.getMessage());
-        }
-    }
-
-    /**
      * Notify VS2 that a BlockEntity has loaded NBT data with copied content.
      * Critical for ship assembly where VS2 queries mass before NBT is loaded.
      *
@@ -165,6 +111,60 @@ public class VS2CopyBlockIntegration {
             method.invoke(null, level, pos, state, copiedBlock);
         } catch (Exception e) {
             System.err.println("[Imitari] Failed to notify VS2 of block entity data load: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Notify VS2 that a block's state has changed (e.g., layer count, slab type).
+     * This updates the mass calculation when the mass multiplier changes.
+     *
+     * @param level The world
+     * @param pos The block position
+     * @param oldState The previous block state
+     * @param newState The new block state
+     */
+    public static void onBlockStateChanged(Level level, BlockPos pos,
+                                           BlockState oldState,
+                                           BlockState newState) {
+        if (!isAvailable()) {
+            return;
+        }
+
+        try {
+            Class<?> implClass = Class.forName("com.vibey.imitari.vs2.VS2CopyBlockIntegrationImpl");
+            var method = implClass.getMethod("onBlockStateChanged",
+                    Level.class, BlockPos.class, BlockState.class, BlockState.class);
+            method.invoke(null, level, pos, oldState, newState);
+        } catch (Exception e) {
+            System.err.println("[Imitari] Failed to notify VS2 of block state change: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Notify VS2 that a CopyBlock is being removed/broken.
+     * This ensures the correct mass is subtracted.
+     *
+     * CRITICAL: Call this BEFORE the block is actually removed!
+     *
+     * @param level The world
+     * @param pos The block position
+     * @param state The CopyBlock state being removed
+     * @param copiedBlock The copied block that was stored (for mass calculation)
+     */
+    public static void onBlockRemoved(Level level, BlockPos pos,
+                                      BlockState state,
+                                      BlockState copiedBlock) {
+        if (!isAvailable()) {
+            return;
+        }
+
+        try {
+            Class<?> implClass = Class.forName("com.vibey.imitari.vs2.VS2CopyBlockIntegrationImpl");
+            var method = implClass.getMethod("onBlockRemoved",
+                    Level.class, BlockPos.class, BlockState.class, BlockState.class);
+            method.invoke(null, level, pos, state, copiedBlock);
+        } catch (Exception e) {
+            System.err.println("[Imitari] Failed to notify VS2 of block removal: " + e.getMessage());
         }
     }
 }

@@ -260,7 +260,7 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
 
                 // CRITICAL: Notify VS2 that layers changed!
                 if (!context.getLevel().isClientSide) {
-                    com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockState(
+                    com.vibey.imitari.vs2.VS2CopyBlockIntegration.onBlockStateChanged(
                             context.getLevel(), pos, existingState, newState
                     );
                 }

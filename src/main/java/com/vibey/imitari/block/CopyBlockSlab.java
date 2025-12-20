@@ -123,7 +123,7 @@ public class CopyBlockSlab extends Block implements EntityBlock, ICopyBlock {
 
             // CRITICAL: Notify VS2 that slab became double (mass changed!)
             if (!context.getLevel().isClientSide) {
-                com.vibey.imitari.vs2.VS2CopyBlockIntegration.updateCopyBlockState(
+                com.vibey.imitari.vs2.VS2CopyBlockIntegration.onBlockStateChanged(
                         context.getLevel(), pos, state, newState
                 );
             }

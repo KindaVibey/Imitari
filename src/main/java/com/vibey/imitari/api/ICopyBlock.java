@@ -292,24 +292,24 @@ public interface ICopyBlock {
      *
      * IMPORTANT: This also notifies VS2 to subtract the correct mass!
      */
+    /**
+     * Drop the copied block when broken (not in creative).
+     * Call this from your Block's {@code onRemove()} override.
+     */
     default void copyblock$onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
-        if (!state.is(newState.getBlock())) {
-            // Block is being removed/replaced
+        if (!state.is(newState.getBlock()) && !level.isClientSide) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof ICopyBlockEntity be) {
+                BlockState copiedState = be.getCopiedBlock();
 
-            // CRITICAL: Notify VS2 BEFORE the block entity is removed!
-            com.vibey.imitari.vs2.VS2CopyBlockIntegration.onBlockRemoved(level, pos, state, newState);
+                // Notify VS2 BEFORE removing the block entity
+                com.vibey.imitari.vs2.VS2CopyBlockIntegration.onBlockRemoved(level, pos, state, copiedState);
 
-            // Then handle drops
-            if (!level.isClientSide) {
-                BlockEntity blockEntity = level.getBlockEntity(pos);
-                if (blockEntity instanceof ICopyBlockEntity be) {
-                    BlockState copiedState = be.getCopiedBlock();
-                    if (!copiedState.isAir() && !be.wasRemovedByCreative()) {
-                        ItemStack droppedItem = new ItemStack(copiedState.getBlock());
-                        droppedItem.setTag(null);
-                        level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5,
-                                pos.getY() + 0.5, pos.getZ() + 0.5, droppedItem));
-                    }
+                if (!copiedState.isAir() && !be.wasRemovedByCreative()) {
+                    ItemStack droppedItem = new ItemStack(copiedState.getBlock());
+                    droppedItem.setTag(null);
+                    level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5,
+                            pos.getY() + 0.5, pos.getZ() + 0.5, droppedItem));
                 }
             }
         }

@@ -3,6 +3,7 @@ package com.vibey.imitari.vs2;
 import com.vibey.imitari.Imitari;
 import com.vibey.imitari.api.ICopyBlock;
 import com.vibey.imitari.blockentity.CopyBlockEntity;
+import com.vibey.imitari.block.CopyBlockLayer;
 import kotlin.Pair;
 import kotlin.Triple;
 import net.minecraft.core.BlockPos;
@@ -11,7 +12,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import org.jetbrains.annotations.Nullable;
 import org.valkyrienskies.core.apigame.world.chunks.BlockType;
 import org.valkyrienskies.mod.common.BlockStateInfo;
@@ -26,11 +26,6 @@ import java.util.List;
 /**
  * ACTUAL implementation with VS2 dependencies.
  * This class is ONLY loaded when VS2 is present via reflection.
- *
- * FIXED ISSUES:
- * 1. Empty blocks are always 10kg (regardless of mass multiplier)
- * 2. Layer blocks update mass when layers property changes
- * 3. Breaking blocks subtracts correct copied mass
  */
 public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
     public static final VS2CopyBlockIntegrationImpl INSTANCE = new VS2CopyBlockIntegrationImpl();
@@ -57,62 +52,56 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         Level level = CURRENT_LEVEL.get();
         BlockPos pos = CURRENT_POS.get();
 
+        // CRITICAL: Default to empty mass for ALL empty blocks regardless of state
+        // This ensures layers/slabs/stairs are 10kg when empty, not scaled by their state
+        double massToReturn = EMPTY_COPY_BLOCK_MASS;
+
         if (level != null && pos != null) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof CopyBlockEntity copyBE) {
                 BlockState copiedBlock = copyBE.getCopiedBlock();
+                if (copiedBlock != null && !copiedBlock.isAir()) {
+                    // HAS copied block - use dynamic multiplier based on state
+                    Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
+                    double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
 
-                // CRITICAL: Empty blocks are ALWAYS 10kg regardless of blockstate!
-                if (copiedBlock == null || copiedBlock.isAir()) {
-                    return EMPTY_COPY_BLOCK_MASS; // Always 10kg when empty
+                    // Get effective mass multiplier (accounts for layers, slab type, etc.)
+                    float effectiveMassMultiplier = getEffectiveMassMultiplier(blockState, copyBlock);
+
+                    massToReturn = copiedMass * effectiveMassMultiplier;
                 }
-
-                // Has copied content - NOW apply the multiplier
-                Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
-                double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
-
-                // Get the CURRENT mass multiplier (handles layers changing)
-                float currentMultiplier = this.getEffectiveMassMultiplier(blockState, copyBlock);
-
-                return copiedMass * currentMultiplier;
+                // else: keep EMPTY_COPY_BLOCK_MASS (10kg)
             }
+            // else: no BlockEntity yet, keep EMPTY_COPY_BLOCK_MASS (10kg)
         }
+        // else: no context, keep EMPTY_COPY_BLOCK_MASS (10kg)
 
-        // Default to empty mass (no context or no block entity)
-        return EMPTY_COPY_BLOCK_MASS;
+        return massToReturn;
     }
 
     /**
-     * Get the effective mass multiplier for a block state.
-     * For layer blocks, this multiplies by the layer count.
-     * For other blocks, just returns the base multiplier.
+     * Get the effective mass multiplier, accounting for dynamic states like layer count.
+     *
+     * @param state The block state
+     * @param copyBlock The ICopyBlock instance
+     * @return The effective mass multiplier
      */
     private float getEffectiveMassMultiplier(BlockState state, ICopyBlock copyBlock) {
-        // Check if this block has a "layers" property (CopyBlockLayer)
-        try {
-            if (state.hasProperty(com.vibey.imitari.block.CopyBlockLayer.LAYERS)) {
-                int layers = state.getValue(com.vibey.imitari.block.CopyBlockLayer.LAYERS);
-                // Base multiplier (0.125) * layer count
-                return copyBlock.getMassMultiplier() * layers;
-            }
-        } catch (Exception e) {
-            // Not a layer block or property doesn't exist
+        // Special handling for CopyBlockLayer - multiply base by layer count
+        if (copyBlock instanceof CopyBlockLayer layerBlock) {
+            return layerBlock.getEffectiveMassMultiplier(state);
         }
 
-        // For slabs, check if it's a double slab
-        try {
-            if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.SLAB_TYPE)) {
-                var type = state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.SLAB_TYPE);
-                if (type == net.minecraft.world.level.block.state.properties.SlabType.DOUBLE) {
-                    // Double slab = full block mass
-                    return 1.0f;
-                }
+        // Special handling for slabs - check if it's a double slab
+        if (state.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.SLAB_TYPE)) {
+            var slabType = state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.SLAB_TYPE);
+            if (slabType == net.minecraft.world.level.block.state.properties.SlabType.DOUBLE) {
+                // Double slab = 2x the base multiplier
+                return copyBlock.getMassMultiplier() * 2.0f;
             }
-        } catch (Exception e) {
-            // Not a slab
         }
 
-        // Default: just the base multiplier
+        // Default: just use the base multiplier
         return copyBlock.getMassMultiplier();
     }
 
@@ -150,32 +139,33 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
 
         BlockState newCopiedBlock = copyBE.getCopiedBlock();
 
-        // Get effective multiplier from instance method
-        float effectiveMultiplier = INSTANCE.getEffectiveMassMultiplier(copyBlockState, copyBlock);
-
         // Calculate what the OLD mass was
         double oldMass;
         if (oldCopiedBlock == null || oldCopiedBlock.isAir()) {
-            // Was empty - always 10kg
+            // Was empty - always 10kg regardless of state
             oldMass = EMPTY_COPY_BLOCK_MASS;
         } else {
+            // Had copied block - calculate with effective multiplier
             Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(oldCopiedBlock);
             double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
-            oldMass = copiedMass * effectiveMultiplier;
+            float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(copyBlockState, copyBlock);
+            oldMass = copiedMass * effectiveMassMultiplier;
         }
 
         // Calculate what the NEW mass should be
         double newMass;
         if (newCopiedBlock == null || newCopiedBlock.isAir()) {
-            // Now empty - always 10kg
+            // Now empty - always 10kg regardless of state
             newMass = EMPTY_COPY_BLOCK_MASS;
         } else {
+            // Now has copied block - calculate with effective multiplier
             Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(newCopiedBlock);
             double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
-            newMass = copiedMass * effectiveMultiplier;
+            float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(copyBlockState, copyBlock);
+            newMass = copiedMass * effectiveMassMultiplier;
         }
 
-        System.out.println("[Imitari VS2] updateCopyBlockMass - Old: " + oldMass + "kg -> New: " + newMass + "kg");
+        System.out.println("[Imitari VS2] updateCopyBlockMass - Old: " + oldMass + " -> New: " + newMass);
 
         // Get block type info - use context to help getBlockStateMass work
         CURRENT_LEVEL.set(level);
@@ -185,67 +175,6 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
             if (blockInfo == null) return;
 
             // Update VS2 - this tells VS2 to change the mass from oldMass to newMass
-            var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
-            if (shipWorld != null) {
-                shipWorld.onSetBlock(
-                        pos.getX(), pos.getY(), pos.getZ(),
-                        VSGameUtilsKt.getDimensionId(level),
-                        blockInfo.getSecond(),
-                        blockInfo.getSecond(),
-                        oldMass,
-                        newMass
-                );
-            }
-        } finally {
-            CURRENT_LEVEL.remove();
-            CURRENT_POS.remove();
-        }
-    }
-
-    /**
-     * Called when a block state changes (like layers growing).
-     * This updates VS2 with the new mass multiplier.
-     */
-    public static void updateCopyBlockState(Level level, BlockPos pos, BlockState oldState, BlockState newState) {
-        if (level.isClientSide) return;
-        if (!(newState.getBlock() instanceof ICopyBlock copyBlock)) return;
-
-        BlockEntity be = level.getBlockEntity(pos);
-        if (!(be instanceof CopyBlockEntity copyBE)) return;
-
-        BlockState copiedBlock = copyBE.getCopiedBlock();
-        if (copiedBlock == null || copiedBlock.isAir()) {
-            // Empty - no need to update (always 10kg)
-            return;
-        }
-
-        // Calculate old and new effective multipliers
-        float oldMultiplier = INSTANCE.getEffectiveMassMultiplier(oldState, copyBlock);
-        float newMultiplier = INSTANCE.getEffectiveMassMultiplier(newState, copyBlock);
-
-        if (Math.abs(oldMultiplier - newMultiplier) < 0.001f) {
-            // No change in multiplier
-            return;
-        }
-
-        // Calculate masses
-        Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
-        double copiedBaseMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
-
-        double oldMass = copiedBaseMass * oldMultiplier;
-        double newMass = copiedBaseMass * newMultiplier;
-
-        System.out.println("[Imitari VS2] Block state changed - Old multiplier: " + oldMultiplier +
-                " -> New multiplier: " + newMultiplier);
-        System.out.println("[Imitari VS2] Mass update: " + oldMass + "kg -> " + newMass + "kg");
-
-        // Notify VS2
-        CURRENT_LEVEL.set(level);
-        CURRENT_POS.set(pos);
-        try {
-            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(newState);
-            if (blockInfo == null) return;
-
             var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
             if (shipWorld != null) {
                 shipWorld.onSetBlock(
@@ -279,14 +208,14 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         var shipObjectWorld = VSGameUtilsKt.getShipObjectWorld(level);
         if (shipObjectWorld == null) return;
 
-        // Calculate the correct mass
+        // Calculate the correct mass with effective multiplier
         Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
         double copiedMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
-        float effectiveMultiplier = INSTANCE.getEffectiveMassMultiplier(state, copyBlock);
-        double correctMass = copiedMass * effectiveMultiplier;
+        float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(state, copyBlock);
+        double correctMass = copiedMass * effectiveMassMultiplier;
 
         System.out.println("[Imitari VS2] BlockEntity loaded with copied data! Updating mass from " +
-                EMPTY_COPY_BLOCK_MASS + "kg to " + correctMass + "kg");
+                EMPTY_COPY_BLOCK_MASS + " to " + correctMass + " (multiplier: " + effectiveMassMultiplier + ")");
 
         // Get block type
         CURRENT_LEVEL.set(level);
@@ -295,13 +224,13 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
             Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
             if (blockInfo == null) return;
 
-            // Tell VS2 to update from empty mass to correct mass
+            // Tell VS2 to update from empty mass (10kg) to correct mass
             shipObjectWorld.onSetBlock(
                     pos.getX(), pos.getY(), pos.getZ(),
                     VSGameUtilsKt.getDimensionId(level),
                     blockInfo.getSecond(),
                     blockInfo.getSecond(),
-                    EMPTY_COPY_BLOCK_MASS,  // What VS2 initially calculated
+                    EMPTY_COPY_BLOCK_MASS,  // What VS2 initially calculated (always 10kg for empty)
                     correctMass              // What it should actually be
             );
         } finally {
@@ -311,54 +240,104 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
     }
 
     /**
-     * Called when a CopyBlock is being removed/broken.
-     * This tells VS2 to transition from the dynamic mass to the default empty mass.
+     * Called when a block state changes (e.g., slab becomes double slab, layer count increases).
+     * This notifies VS2 that the mass has changed due to the block state change.
      *
-     * CRITICAL: Must be called BEFORE the block is actually removed!
-     * VS2 will then automatically subtract the default mass (10kg) when the block is removed.
+     * IMPORTANT: Only affects blocks WITH copied content. Empty blocks always stay 10kg.
      */
-    public static void onBlockRemoved(Level level, BlockPos pos, BlockState oldState, BlockState newState) {
+    public static void onBlockStateChanged(Level level, BlockPos pos, BlockState oldState, BlockState newState) {
         if (level.isClientSide) return;
-        if (oldState.is(newState.getBlock())) return; // Not actually being removed
-        if (!(oldState.getBlock() instanceof ICopyBlock copyBlock)) return;
+        if (!(newState.getBlock() instanceof ICopyBlock copyBlock)) return;
 
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof CopyBlockEntity copyBE)) return;
 
         BlockState copiedBlock = copyBE.getCopiedBlock();
 
-        // Only need to notify VS2 if the block has copied content
-        // (Empty blocks already have the correct 10kg mass)
+        // If there's no copied block, both old and new mass are 10kg - no change needed
         if (copiedBlock == null || copiedBlock.isAir()) {
-            return; // Already 10kg, VS2 will handle removal correctly
+            return;
         }
 
-        // Calculate the current mass (dynamic mass based on copied block)
-        Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
-        double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
-        float effectiveMultiplier = INSTANCE.getEffectiveMassMultiplier(oldState, copyBlock);
-        double currentMass = copiedMass * effectiveMultiplier;
+        // Calculate old and new mass based on state changes
+        float oldMultiplier = INSTANCE.getEffectiveMassMultiplier(oldState, copyBlock);
+        float newMultiplier = INSTANCE.getEffectiveMassMultiplier(newState, copyBlock);
 
-        System.out.println("[Imitari VS2] Block being removed! Transitioning from " + currentMass + "kg to " + EMPTY_COPY_BLOCK_MASS + "kg");
+        // Only update if multiplier actually changed
+        if (Math.abs(oldMultiplier - newMultiplier) < 0.001f) return;
 
-        // Get block type info
+        Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
+        double baseMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
+
+        double oldMass = baseMass * oldMultiplier;
+        double newMass = baseMass * newMultiplier;
+
+        System.out.println("[Imitari VS2] Block state changed! Mass: " + oldMass + " -> " + newMass +
+                " (multiplier: " + oldMultiplier + " -> " + newMultiplier + ")");
+
+        // Update VS2
         CURRENT_LEVEL.set(level);
         CURRENT_POS.set(pos);
         try {
-            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(oldState);
+            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(newState);
             if (blockInfo == null) return;
 
             var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
             if (shipWorld != null) {
-                // Tell VS2: transition from dynamic mass to empty mass
-                // Then VS2's automatic removal will subtract the 10kg
                 shipWorld.onSetBlock(
                         pos.getX(), pos.getY(), pos.getZ(),
                         VSGameUtilsKt.getDimensionId(level),
-                        blockInfo.getSecond(),  // Old block type
-                        blockInfo.getSecond(),  // Same block type (not removed yet)
-                        currentMass,            // Old mass (dynamic mass with copied block)
-                        EMPTY_COPY_BLOCK_MASS   // New mass (empty mass - VS2 will subtract this)
+                        blockInfo.getSecond(),
+                        blockInfo.getSecond(),
+                        oldMass,
+                        newMass
+                );
+            }
+        } finally {
+            CURRENT_LEVEL.remove();
+            CURRENT_POS.remove();
+        }
+    }
+
+    /**
+     * Called when a CopyBlock is removed/broken.
+     * Notifies VS2 to subtract the correct mass.
+     */
+    public static void onBlockRemoved(Level level, BlockPos pos, BlockState state, BlockState copiedBlock) {
+        if (level.isClientSide) return;
+        if (!(state.getBlock() instanceof ICopyBlock copyBlock)) return;
+
+        // Calculate the mass that needs to be removed
+        double massToRemove;
+        if (copiedBlock == null || copiedBlock.isAir()) {
+            massToRemove = EMPTY_COPY_BLOCK_MASS;
+        } else {
+            Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
+            double copiedMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
+            float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(state, copyBlock);
+            massToRemove = copiedMass * effectiveMassMultiplier;
+        }
+
+        System.out.println("[Imitari VS2] Block removed! Subtracting " + massToRemove + "kg");
+
+        // Notify VS2
+        CURRENT_LEVEL.set(level);
+        CURRENT_POS.set(pos);
+        try {
+            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
+            if (blockInfo == null) return;
+
+            var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
+            if (shipWorld != null) {
+                // When block is removed, we go from current mass to 0
+                // VS2 will handle this as a block removal
+                shipWorld.onSetBlock(
+                        pos.getX(), pos.getY(), pos.getZ(),
+                        VSGameUtilsKt.getDimensionId(level),
+                        blockInfo.getSecond(),
+                        blockInfo.getSecond(),
+                        massToRemove - 10,   // Old mass (what we're removing)
+                        0.0             // New mass (0 because block is gone)
                 );
             }
         } finally {
