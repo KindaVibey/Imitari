@@ -1,6 +1,7 @@
 {
   "format_version": "1.9.0",
   "credit": "Made with Blockbench",
+  "parent": "block/block",
   "textures": {
     "0": "imitari:block/copycraftblock",
     "particle": "imitari:block/copycraftblock"

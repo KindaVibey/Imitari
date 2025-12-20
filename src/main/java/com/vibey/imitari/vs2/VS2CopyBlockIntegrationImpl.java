@@ -48,35 +48,30 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
             return null;
         }
 
-        // Try to get the actual mass from the block entity if we have context
+        // CRITICAL: Check for copied content FIRST, before any multiplier calculations
         Level level = CURRENT_LEVEL.get();
         BlockPos pos = CURRENT_POS.get();
-
-        // CRITICAL: Default to empty mass for ALL empty blocks regardless of state
-        // This ensures layers/slabs/stairs are 10kg when empty, not scaled by their state
-        double massToReturn = EMPTY_COPY_BLOCK_MASS;
 
         if (level != null && pos != null) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof CopyBlockEntity copyBE) {
                 BlockState copiedBlock = copyBE.getCopiedBlock();
-                if (copiedBlock != null && !copiedBlock.isAir()) {
-                    // HAS copied block - use dynamic multiplier based on state
-                    Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
-                    double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
 
-                    // Get effective mass multiplier (accounts for layers, slab type, etc.)
-                    float effectiveMassMultiplier = getEffectiveMassMultiplier(blockState, copyBlock);
-
-                    massToReturn = copiedMass * effectiveMassMultiplier;
+                // If empty, ALWAYS return 10kg - don't even look at the blockstate properties
+                if (copiedBlock == null || copiedBlock.isAir()) {
+                    return EMPTY_COPY_BLOCK_MASS;
                 }
-                // else: keep EMPTY_COPY_BLOCK_MASS (10kg)
-            }
-            // else: no BlockEntity yet, keep EMPTY_COPY_BLOCK_MASS (10kg)
-        }
-        // else: no context, keep EMPTY_COPY_BLOCK_MASS (10kg)
 
-        return massToReturn;
+                // HAS copied block - NOW we can use dynamic multiplier based on state
+                Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
+                double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
+                float effectiveMassMultiplier = getEffectiveMassMultiplier(blockState, copyBlock);
+                return copiedMass * effectiveMassMultiplier;
+            }
+        }
+
+        // NO context - assume empty, always 10kg
+        return EMPTY_COPY_BLOCK_MASS;
     }
 
     /**
@@ -88,6 +83,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
      */
     private float getEffectiveMassMultiplier(BlockState state, ICopyBlock copyBlock) {
         // Special handling for CopyBlockLayer - multiply base by layer count
+
         if (copyBlock instanceof CopyBlockLayer layerBlock) {
             return layerBlock.getEffectiveMassMultiplier(state);
         }
