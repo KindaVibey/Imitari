@@ -18,7 +18,7 @@ import java.util.Set;
 public class CopyBlockModelProvider {
 
     private static final Set<ResourceLocation> REGISTERED_BLOCKS = new HashSet<>();
-    private static boolean modelsWrapped = false; // prevent infinite wrapping/reload loops
+    //private static boolean modelsWrapped = false; // prevent infinite wrapping/reload loops
 
     public static void registerBlock(ResourceLocation blockId) {
         REGISTERED_BLOCKS.add(blockId);
@@ -44,8 +44,8 @@ public class CopyBlockModelProvider {
 
     public static void onModelBake(ModelEvent.ModifyBakingResult event) {
         // Prevent multiple wrapping that could cause reload loops
-        if (modelsWrapped) return;
-        modelsWrapped = true;
+        //if (modelsWrapped) return;
+        //modelsWrapped = true;
 
         Map<ResourceLocation, BakedModel> modelRegistry = event.getModels();
 
@@ -77,6 +77,6 @@ public class CopyBlockModelProvider {
 
     public static void clearRegistrations() {
         REGISTERED_BLOCKS.clear();
-        modelsWrapped = false;
+        //modelsWrapped = false;
     }
 }

@@ -15,6 +15,7 @@ import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -31,7 +32,7 @@ import org.slf4j.Logger;
 @Mod(Imitari.MODID)
 public class Imitari {
     public static final String MODID = "imitari";
-    public static final String VERSION = "2.0.0";
+    public static final String VERSION = "0.1.0";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public Imitari() {
