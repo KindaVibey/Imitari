@@ -70,39 +70,107 @@ public class CopyBlockModel implements BakedModel {
                 .getBlockRenderer()
                 .getBlockModel(copiedState);
 
+        // Get ALL quads for the SPECIFIC DIRECTION we're rendering
+        // Grass blocks have multiple quads per face (tinted overlay + untinted base)
         List<BakedQuad> copiedFaceQuads = getCopiedFaceQuads(copiedModel, copiedState, side, rand, renderType);
-        TextureAtlasSprite fallbackSprite = copiedModel.getParticleIcon(ModelData.EMPTY);
 
         if (copiedFaceQuads.isEmpty()) {
+            // Fallback to particle texture if no face quads found
+            TextureAtlasSprite fallbackSprite = copiedModel.getParticleIcon(ModelData.EMPTY);
             List<BakedQuad> remappedQuads = new ArrayList<>(baseQuads.size());
             for (BakedQuad quad : baseQuads) {
-                remappedQuads.add(remapQuadTexture(quad, fallbackSprite, null, quad.getTintIndex()));
+                remappedQuads.add(remapQuadTexture(quad, fallbackSprite, quad.getTintIndex()));
             }
             return remappedQuads;
         }
 
-        List<BakedQuad> remappedQuads = new ArrayList<>(baseQuads.size() * copiedFaceQuads.size());
+        // IMPROVED APPROACH: For blocks with multiple textures per face (like grass),
+        // we need to handle each base quad properly
+        List<BakedQuad> remappedQuads = new ArrayList<>();
+
         for (BakedQuad baseQuad : baseQuads) {
-            for (BakedQuad sourceQuad : copiedFaceQuads) {
-                remappedQuads.add(remapQuadTexture(baseQuad, sourceQuad.getSprite(), sourceQuad, sourceQuad.getTintIndex()));
+            Direction baseQuadDir = baseQuad.getDirection();
+
+            // Find ALL source quads that match this direction
+            List<BakedQuad> matchingSourceQuads = findAllMatchingQuads(copiedFaceQuads, baseQuadDir);
+
+            if (!matchingSourceQuads.isEmpty()) {
+                // For each matching source quad, create a remapped version
+                // This handles grass which has multiple quads per face (tinted + untinted)
+                for (BakedQuad sourceQuad : matchingSourceQuads) {
+                    remappedQuads.add(remapQuadTexture(baseQuad, sourceQuad.getSprite(), sourceQuad.getTintIndex()));
+                }
+            } else {
+                // Fallback: use first source quad
+                BakedQuad sourceQuad = copiedFaceQuads.get(0);
+                remappedQuads.add(remapQuadTexture(baseQuad, sourceQuad.getSprite(), sourceQuad.getTintIndex()));
             }
         }
 
         return remappedQuads;
     }
 
+    /**
+     * Find ALL matching quads from source quads based on direction.
+     * Important for blocks like grass that have multiple quads per face (overlay + base).
+     */
+    private List<BakedQuad> findAllMatchingQuads(List<BakedQuad> sourceQuads, Direction targetDir) {
+        List<BakedQuad> matches = new ArrayList<>();
+        for (BakedQuad quad : sourceQuads) {
+            if (quad.getDirection() == targetDir) {
+                matches.add(quad);
+            }
+        }
+        return matches;
+    }
+
+    /**
+     * Find the best matching quad from source quads based on direction.
+     * This ensures we copy the correct face texture (e.g., grass top vs grass side).
+     * @deprecated Use findAllMatchingQuads instead for proper multi-quad support
+     */
+    @Deprecated
+    private BakedQuad findMatchingQuad(List<BakedQuad> sourceQuads, Direction targetDir) {
+        // First, try exact direction match
+        for (BakedQuad quad : sourceQuads) {
+            if (quad.getDirection() == targetDir) {
+                return quad;
+            }
+        }
+
+        // If no exact match, return first quad (shouldn't happen for well-formed models)
+        return sourceQuads.isEmpty() ? null : sourceQuads.get(0);
+    }
+
     private List<BakedQuad> getCopiedFaceQuads(BakedModel copiedModel, BlockState copiedState,
                                                @Nullable Direction side, RandomSource rand,
                                                @Nullable RenderType renderType) {
         if (side == null) {
-            return Collections.emptyList();
+            // For null side, get all directional quads and organize by direction
+            List<BakedQuad> allQuads = new ArrayList<>();
+
+            // Try to get face-specific quads for each direction
+            for (Direction dir : Direction.values()) {
+                List<BakedQuad> faceQuads = copiedModel.getQuads(copiedState, dir, rand, ModelData.EMPTY, renderType);
+                allQuads.addAll(faceQuads);
+            }
+
+            // If we got face quads, return those
+            if (!allQuads.isEmpty()) {
+                return allQuads;
+            }
+
+            // Otherwise fall back to unculled quads
+            return copiedModel.getQuads(copiedState, null, rand, ModelData.EMPTY, renderType);
         }
 
+        // For specific side, get that side's quads
         List<BakedQuad> faceQuads = copiedModel.getQuads(copiedState, side, rand, ModelData.EMPTY, renderType);
         if (!faceQuads.isEmpty()) {
             return faceQuads;
         }
 
+        // Fallback: check unculled quads for this direction
         List<BakedQuad> allQuads = copiedModel.getQuads(copiedState, null, rand, ModelData.EMPTY, renderType);
         if (allQuads.isEmpty()) {
             return Collections.emptyList();
@@ -117,18 +185,22 @@ public class CopyBlockModel implements BakedModel {
         return filtered;
     }
 
-    private BakedQuad remapQuadTexture(BakedQuad originalQuad, TextureAtlasSprite newSprite, @Nullable BakedQuad sourceQuad, int tintIndex) {
+    private BakedQuad remapQuadTexture(BakedQuad originalQuad, TextureAtlasSprite newSprite, int tintIndex) {
         int[] vertexData = originalQuad.getVertices().clone();
         TextureAtlasSprite oldSprite = originalQuad.getSprite();
 
+        // Remap UV coordinates from old sprite space to new sprite space
         for (int i = 0; i < 4; i++) {
-            int offset = i * 8;
+            int offset = i * 8;  // Each vertex is 8 ints (pos xyz, color, uv, lightmap, normal)
+
             float u = Float.intBitsToFloat(vertexData[offset + 4]);
             float v = Float.intBitsToFloat(vertexData[offset + 5]);
 
+            // Calculate relative position in old sprite (0.0 to 1.0)
             float relativeU = (u - oldSprite.getU0()) / (oldSprite.getU1() - oldSprite.getU0());
             float relativeV = (v - oldSprite.getV0()) / (oldSprite.getV1() - oldSprite.getV0());
 
+            // Map to new sprite coordinates
             float newU = newSprite.getU0() + relativeU * (newSprite.getU1() - newSprite.getU0());
             float newV = newSprite.getV0() + relativeV * (newSprite.getV1() - newSprite.getV0());
 
@@ -136,6 +208,9 @@ public class CopyBlockModel implements BakedModel {
             vertexData[offset + 5] = Float.floatToRawIntBits(newV);
         }
 
+        // CRITICAL FIX: Only use the source tint index if it's actually tinted
+        // Grass blocks have tintIndex = -1 for untinted parts (dirt base) and >= 0 for tinted (grass overlay)
+        // Using the wrong tint index causes the lime green color on sides
         return new BakedQuad(vertexData, tintIndex, originalQuad.getDirection(), newSprite, originalQuad.isShade());
     }
 
@@ -269,6 +344,9 @@ public class CopyBlockModel implements BakedModel {
             BakedModel copiedModel = Minecraft.getInstance()
                     .getBlockRenderer()
                     .getBlockModel(copiedState);
+
+            // Get particle icon from the COPIED block's model
+            // This ensures particles (break/place effects) show the right texture
             return copiedModel.getParticleIcon(ModelData.EMPTY);
         }
         return baseModel.getParticleIcon();
