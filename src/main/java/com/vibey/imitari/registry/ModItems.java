@@ -1,6 +1,7 @@
 package com.vibey.imitari.registry;
 
 import com.vibey.imitari.Imitari;
+import com.vibey.imitari.item.DebugToolItem;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -28,6 +29,9 @@ public class ModItems {
 
     public static final RegistryObject<Item> COPY_BLOCK_LAYER = ITEMS.register("copy_block_layer",
             () -> new BlockItem(ModBlocks.COPY_BLOCK_LAYER.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> DEBUG_TOOL = ITEMS.register("debug_tool",
+            () -> new DebugToolItem(new Item.Properties()));
 
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);

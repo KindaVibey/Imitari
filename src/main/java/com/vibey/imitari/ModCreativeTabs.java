@@ -6,6 +6,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.RegistryObject;
 
@@ -23,6 +24,7 @@ public class ModCreativeTabs {
                         output.accept(ModItems.COPY_BLOCK_SLAB.get());
                         output.accept(ModItems.COPY_BLOCK_STAIRS.get());
                         output.accept(ModItems.COPY_BLOCK_LAYER.get());
+                        output.accept(ModItems.DEBUG_TOOL.get());
                     })
                     .build());
 
