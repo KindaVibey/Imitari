@@ -13,7 +13,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
-import org.valkyrienskies.core.apigame.world.chunks.BlockType;
+import org.valkyrienskies.core.internal.world.chunks.VsiBlockType;
 import org.valkyrienskies.mod.common.BlockStateInfo;
 import org.valkyrienskies.mod.common.BlockStateInfoProvider;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
@@ -63,7 +63,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
                 }
 
                 // HAS copied block - NOW we can use dynamic multiplier based on state
-                Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
+                Pair<Double, VsiBlockType> info = BlockStateInfo.INSTANCE.get(copiedBlock);
                 double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
                 float effectiveMassMultiplier = getEffectiveMassMultiplier(blockState, copyBlock);
                 return copiedMass * effectiveMassMultiplier;
@@ -103,23 +103,8 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
 
     @Nullable
     @Override
-    public BlockType getBlockStateType(BlockState blockState) {
+    public VsiBlockType getBlockStateType(BlockState blockState) {
         return null;
-    }
-
-    @Override
-    public List<Lod1SolidBlockState> getSolidBlockStates() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<Lod1LiquidBlockState> getLiquidBlockStates() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<Triple<Integer, Integer, Integer>> getBlockStateData() {
-        return Collections.emptyList();
     }
 
     /**
@@ -142,7 +127,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
             oldMass = EMPTY_COPY_BLOCK_MASS;
         } else {
             // Had copied block - calculate with effective multiplier
-            Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(oldCopiedBlock);
+            Pair<Double, VsiBlockType> info = BlockStateInfo.INSTANCE.get(oldCopiedBlock);
             double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
             float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(copyBlockState, copyBlock);
             oldMass = copiedMass * effectiveMassMultiplier;
@@ -155,7 +140,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
             newMass = EMPTY_COPY_BLOCK_MASS;
         } else {
             // Now has copied block - calculate with effective multiplier
-            Pair<Double, BlockType> info = BlockStateInfo.INSTANCE.get(newCopiedBlock);
+            Pair<Double, VsiBlockType> info = BlockStateInfo.INSTANCE.get(newCopiedBlock);
             double copiedMass = (info != null && info.getFirst() != null) ? info.getFirst() : 50.0;
             float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(copyBlockState, copyBlock);
             newMass = copiedMass * effectiveMassMultiplier;
@@ -167,7 +152,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         CURRENT_LEVEL.set(level);
         CURRENT_POS.set(pos);
         try {
-            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(copyBlockState);
+            Pair<Double, VsiBlockType> blockInfo = BlockStateInfo.INSTANCE.get(copyBlockState);
             if (blockInfo == null) return;
 
             // Update VS2 - this tells VS2 to change the mass from oldMass to newMass
@@ -205,7 +190,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         if (shipObjectWorld == null) return;
 
         // Calculate the correct mass with effective multiplier
-        Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
+        Pair<Double, VsiBlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
         double copiedMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
         float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(state, copyBlock);
         double correctMass = copiedMass * effectiveMassMultiplier;
@@ -217,7 +202,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         CURRENT_LEVEL.set(level);
         CURRENT_POS.set(pos);
         try {
-            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
+            Pair<Double, VsiBlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
             if (blockInfo == null) return;
 
             // Tell VS2 to update from empty mass (10kg) to correct mass
@@ -262,7 +247,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         // Only update if multiplier actually changed
         if (Math.abs(oldMultiplier - newMultiplier) < 0.001f) return;
 
-        Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
+        Pair<Double, VsiBlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
         double baseMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
 
         double oldMass = baseMass * oldMultiplier;
@@ -275,7 +260,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         CURRENT_LEVEL.set(level);
         CURRENT_POS.set(pos);
         try {
-            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(newState);
+            Pair<Double, VsiBlockType> blockInfo = BlockStateInfo.INSTANCE.get(newState);
             if (blockInfo == null) return;
 
             var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
@@ -308,7 +293,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         if (copiedBlock == null || copiedBlock.isAir()) {
             massToRemove = EMPTY_COPY_BLOCK_MASS;
         } else {
-            Pair<Double, BlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
+            Pair<Double, VsiBlockType> copiedInfo = BlockStateInfo.INSTANCE.get(copiedBlock);
             double copiedMass = (copiedInfo != null && copiedInfo.getFirst() != null) ? copiedInfo.getFirst() : 50.0;
             float effectiveMassMultiplier = INSTANCE.getEffectiveMassMultiplier(state, copyBlock);
             massToRemove = copiedMass * effectiveMassMultiplier;
@@ -320,7 +305,7 @@ public class VS2CopyBlockIntegrationImpl implements BlockStateInfoProvider {
         CURRENT_LEVEL.set(level);
         CURRENT_POS.set(pos);
         try {
-            Pair<Double, BlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
+            Pair<Double, VsiBlockType> blockInfo = BlockStateInfo.INSTANCE.get(state);
             if (blockInfo == null) return;
 
             var shipWorld = VSGameUtilsKt.getShipObjectWorld(level);
