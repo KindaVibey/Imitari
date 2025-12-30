@@ -41,8 +41,14 @@ public class ImitariConfig {
 
         TAG_BLACKLIST = BUILDER
                 .comment("List of tags that CopyBlocks should NOT inherit from copied blocks",
-                        "Format: 'namespace:path' (e.g., 'minecraft:dragon_immune', 'forge:ores')")
-                .defineList("tagBlacklist", List.of(), obj -> obj instanceof String);
+                        "Format: 'namespace:path' (e.g., 'minecraft:dragon_immune', 'forge:ores')",
+                        "Default blacklist includes tags that could be exploited or break game balance")
+                .defineList("tagBlacklist",
+                        List.of(
+                                "forge:relocation_not_supported",
+                                "forge:ores"
+                        ),
+                        obj -> obj instanceof String);
 
         COPY_HARDNESS = BUILDER
                 .comment("Whether CopyBlocks inherit hardness (mining speed) from copied blocks")
@@ -58,6 +64,6 @@ public class ImitariConfig {
     }
 
     public static void register() {
-        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SPEC, "imitari-server.toml");
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SPEC, "imitari.toml");
     }
 }
