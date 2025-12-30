@@ -5,6 +5,7 @@ import com.vibey.imitari.api.registration.CopyBlockRegistration;
 import com.vibey.imitari.api.CopyBlockAPI;
 import com.vibey.imitari.api.ICopyBlock;
 import com.vibey.imitari.client.CopyBlockModelProvider;
+import com.vibey.imitari.config.ImitariConfig;
 import com.vibey.imitari.registry.ModBlockEntities;
 import com.vibey.imitari.registry.ModBlocks;
 import com.vibey.imitari.registry.ModItems;
@@ -48,6 +49,9 @@ public class Imitari {
 
         LOGGER.info("Initializing Imitari v{}", VERSION);
 
+        // Register config
+        ImitariConfig.register();
+
         // Setup event listeners
         modEventBus.addListener(this::commonSetup);
 
@@ -59,7 +63,6 @@ public class Imitari {
 
         // Register model provider for client rendering
         modEventBus.addListener(CopyBlockModelProvider::onModelBake);
-        LOGGER.info("Registered CopyBlock model provider");
 
         // Forge event bus
         MinecraftForge.EVENT_BUS.register(this);
@@ -70,13 +73,11 @@ public class Imitari {
         event.enqueueWork(() -> {
             // Register all Imitari CopyBlocks with the API
             int count = CopyBlockRegistration.registerForMod(MODID);
-            LOGGER.info("Registered {} CopyBlocks with Imitari API", count);
+            LOGGER.info("Registered {} CopyBlocks", count);
 
             // Initialize VS2 integration (if present)
             com.vibey.imitari.vs2.VS2CopyBlockIntegration.register();
         });
-
-        LOGGER.info("Imitari common setup complete!");
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
@@ -87,7 +88,7 @@ public class Imitari {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Imitari server starting");
+        // Server starting
     }
 
     /**
@@ -98,11 +99,8 @@ public class Imitari {
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            LOGGER.info("Imitari client setup");
-
             event.enqueueWork(() -> {
                 // Allow both cutout and translucent render types for all CopyBlocks
-                // This enables proper rendering of glass, water, etc. when copied
                 ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK.get(),
                         rt -> rt == RenderType.cutout() || rt == RenderType.translucent());
                 ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK_GHOST.get(),
@@ -136,8 +134,6 @@ public class Imitari {
                         return blockColors.getColor(copiedState, level, pos, tintIndex);
                     }, copyBlocks.toArray(Block[]::new));
                 }
-
-                LOGGER.info("Configured render layers for CopyBlocks");
             });
         }
     }

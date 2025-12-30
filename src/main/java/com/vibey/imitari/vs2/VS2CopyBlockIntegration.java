@@ -1,9 +1,11 @@
 package com.vibey.imitari.vs2;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.fml.ModList;
+import org.slf4j.Logger;
 
 /**
  * Safe wrapper for VS2 integration that has NO direct VS2 dependencies.
@@ -12,6 +14,7 @@ import net.minecraftforge.fml.ModList;
  * This allows Imitari to work without VS2 installed.
  */
 public class VS2CopyBlockIntegration {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static boolean VS2_LOADED = false;
     private static boolean CHECKED = false;
     private static boolean INTEGRATION_FAILED = false;
@@ -36,9 +39,7 @@ public class VS2CopyBlockIntegration {
         CHECKED = true;
 
         if (VS2_LOADED) {
-            System.out.println("[Imitari] Valkyrienskies detected! Enabling CopyBlock physics integration.");
-        } else {
-            System.out.println("[Imitari] Valkyrienskies not detected. CopyBlock will work without ship physics.");
+            LOGGER.info("Valkyrien Skies 2 detected - enabling physics integration");
         }
     }
 
@@ -55,21 +56,15 @@ public class VS2CopyBlockIntegration {
             Class<?> implClass = Class.forName("com.vibey.imitari.vs2.VS2CopyBlockIntegrationImpl");
             var registerMethod = implClass.getMethod("register");
             registerMethod.invoke(null);
-            System.out.println("[Imitari] Successfully registered VS2 CopyBlock integration!");
+            LOGGER.info("VS2 integration registered successfully");
         } catch (Exception e) {
-            System.err.println("[Imitari] Failed to register VS2 integration: " + e.getMessage());
+            LOGGER.error("Failed to register VS2 integration", e);
             INTEGRATION_FAILED = true;
-            e.printStackTrace();
         }
     }
 
     /**
      * Notify VS2 that a CopyBlock's copied content has changed.
-     *
-     * @param level The world
-     * @param pos The block position
-     * @param copyBlockState The CopyBlock's state
-     * @param oldCopiedBlock The previous copied block (for mass calculation)
      */
     public static void updateCopyBlockMass(Level level, BlockPos pos,
                                            BlockState copyBlockState,
@@ -84,18 +79,12 @@ public class VS2CopyBlockIntegration {
                     Level.class, BlockPos.class, BlockState.class, BlockState.class);
             method.invoke(null, level, pos, copyBlockState, oldCopiedBlock);
         } catch (Exception e) {
-            System.err.println("[Imitari] Failed to update VS2 copy block mass: " + e.getMessage());
+            LOGGER.error("Failed to update VS2 copy block mass", e);
         }
     }
 
     /**
      * Notify VS2 that a BlockEntity has loaded NBT data with copied content.
-     * Critical for ship assembly where VS2 queries mass before NBT is loaded.
-     *
-     * @param level The world
-     * @param pos The block position
-     * @param state The block state
-     * @param copiedBlock The copied block from NBT
      */
     public static void onBlockEntityDataLoaded(Level level, BlockPos pos,
                                                BlockState state,
@@ -110,18 +99,12 @@ public class VS2CopyBlockIntegration {
                     Level.class, BlockPos.class, BlockState.class, BlockState.class);
             method.invoke(null, level, pos, state, copiedBlock);
         } catch (Exception e) {
-            System.err.println("[Imitari] Failed to notify VS2 of block entity data load: " + e.getMessage());
+            LOGGER.error("Failed to notify VS2 of block entity data load", e);
         }
     }
 
     /**
      * Notify VS2 that a block's state has changed (e.g., layer count, slab type).
-     * This updates the mass calculation when the mass multiplier changes.
-     *
-     * @param level The world
-     * @param pos The block position
-     * @param oldState The previous block state
-     * @param newState The new block state
      */
     public static void onBlockStateChanged(Level level, BlockPos pos,
                                            BlockState oldState,
@@ -136,20 +119,14 @@ public class VS2CopyBlockIntegration {
                     Level.class, BlockPos.class, BlockState.class, BlockState.class);
             method.invoke(null, level, pos, oldState, newState);
         } catch (Exception e) {
-            System.err.println("[Imitari] Failed to notify VS2 of block state change: " + e.getMessage());
+            LOGGER.error("Failed to notify VS2 of block state change", e);
         }
     }
 
     /**
      * Notify VS2 that a CopyBlock is being removed/broken.
-     * This ensures the correct mass is subtracted.
      *
      * CRITICAL: Call this BEFORE the block is actually removed!
-     *
-     * @param level The world
-     * @param pos The block position
-     * @param state The CopyBlock state being removed
-     * @param copiedBlock The copied block that was stored (for mass calculation)
      */
     public static void onBlockRemoved(Level level, BlockPos pos,
                                       BlockState state,
@@ -164,7 +141,7 @@ public class VS2CopyBlockIntegration {
                     Level.class, BlockPos.class, BlockState.class, BlockState.class);
             method.invoke(null, level, pos, state, copiedBlock);
         } catch (Exception e) {
-            System.err.println("[Imitari] Failed to notify VS2 of block removal: " + e.getMessage());
+            LOGGER.error("Failed to notify VS2 of block removal", e);
         }
     }
 }

@@ -24,6 +24,5 @@ public class ModBlockEntities {
 
     public static void register(IEventBus eventBus) {
         BLOCK_ENTITIES.register(eventBus);
-        System.out.println("Registered CopyCraft block entities!");
     }
 }

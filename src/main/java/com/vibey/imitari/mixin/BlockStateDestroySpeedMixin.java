@@ -2,6 +2,7 @@ package com.vibey.imitari.mixin;
 
 import com.vibey.imitari.api.ICopyBlock;
 import com.vibey.imitari.blockentity.CopyBlockEntity;
+import com.vibey.imitari.config.ImitariConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -20,13 +21,19 @@ public abstract class BlockStateDestroySpeedMixin {
     public abstract net.minecraft.world.level.block.Block m_60734_();
 
     @Inject(method = "m_60800_", at = @At("HEAD"), cancellable = true)
-    private void imitari$getDynamicDestroySpeed(BlockGetter p_60801_, BlockPos p_60802_, CallbackInfoReturnable<Float> cir) {
-        if (!(this.m_60734_() instanceof ICopyBlock)) {
+    private void imitari$getDynamicDestroySpeed(BlockGetter level, BlockPos pos, CallbackInfoReturnable<Float> cir) {
+        if (!(this.m_60734_() instanceof ICopyBlock copyBlock)) {
+            return;
+        }
+
+        // Check config
+        if (!ImitariConfig.COPY_HARDNESS.get()) {
+            cir.setReturnValue(0.5f); // Empty CopyBlock hardness
             return;
         }
 
         try {
-            BlockEntity be = p_60801_.getBlockEntity(p_60802_);
+            BlockEntity be = level.getBlockEntity(pos);
             if (!(be instanceof CopyBlockEntity copyBE)) {
                 return;
             }
@@ -34,19 +41,18 @@ public abstract class BlockStateDestroySpeedMixin {
             BlockState copiedState = copyBE.getCopiedBlock();
 
             if (copiedState == null || copiedState.isAir()) {
-                cir.setReturnValue(0.5f);
+                cir.setReturnValue(0.5f); // Empty CopyBlock hardness
                 return;
             }
 
-            float baseSpeed = copiedState.getDestroySpeed(p_60801_, p_60802_);
+            float baseSpeed = copiedState.getDestroySpeed(level, pos);
 
             if (baseSpeed < 0.0f) {
                 cir.setReturnValue(baseSpeed);
                 return;
             }
 
-            net.minecraft.world.level.block.state.BlockState currentState = (net.minecraft.world.level.block.state.BlockState)(Object)this;
-            ICopyBlock copyBlock = (ICopyBlock) this.m_60734_();
+            BlockState currentState = (BlockState)(Object)this;
 
             // Try to get effective mass multiplier via reflection (for addon blocks)
             float effectiveMultiplier = getEffectiveMassMultiplier(currentState, copyBlock);
@@ -55,32 +61,28 @@ public abstract class BlockStateDestroySpeedMixin {
             cir.setReturnValue(multipliedSpeed);
 
         } catch (Exception e) {
-            System.err.println("[Imitari] ERROR in getDestroySpeed mixin:");
-            e.printStackTrace();
+            // Error - return default
         }
     }
 
     /**
      * Get the effective mass multiplier for any ICopyBlock implementation.
-     * First tries to call getEffectiveMassMultiplier(BlockState) via reflection (for addon-friendly support),
+     * First tries to call getEffectiveMassMultiplier(BlockState) via reflection,
      * then falls back to getMassMultiplier().
      */
-    private float getEffectiveMassMultiplier(net.minecraft.world.level.block.state.BlockState state, ICopyBlock copyBlock) {
+    private float getEffectiveMassMultiplier(BlockState state, ICopyBlock copyBlock) {
         try {
-            // Try to call getEffectiveMassMultiplier(BlockState) if it exists
-            java.lang.reflect.Method method = copyBlock.getClass().getMethod("getEffectiveMassMultiplier", net.minecraft.world.level.block.state.BlockState.class);
+            java.lang.reflect.Method method = copyBlock.getClass().getMethod("getEffectiveMassMultiplier", BlockState.class);
             Object result = method.invoke(copyBlock, state);
             if (result instanceof Float) {
                 return (Float) result;
             }
         } catch (NoSuchMethodException e) {
-            // Method doesn't exist - this is normal for blocks without effective multiplier
+            // Method doesn't exist - this is normal
         } catch (Exception e) {
-            // Other reflection errors - log but continue
-            System.err.println("[Imitari] Failed to call getEffectiveMassMultiplier via reflection: " + e.getMessage());
+            // Other errors - continue
         }
 
-        // Fallback: use base multiplier
         return copyBlock.getMassMultiplier();
     }
 }

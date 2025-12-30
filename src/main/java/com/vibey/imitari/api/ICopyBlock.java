@@ -1,6 +1,7 @@
 package com.vibey.imitari.api;
 
 import com.vibey.imitari.api.blockentity.ICopyBlockEntity;
+import com.vibey.imitari.config.ImitariConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
@@ -96,7 +97,7 @@ public interface ICopyBlock {
      * @return true to inherit tags (default), false to use only this block's tags
      */
     default boolean useDynamicTags() {
-        return true;
+        return ImitariConfig.ENABLE_DYNAMIC_TAGS.get();
     }
 
     /**
@@ -116,16 +117,27 @@ public interface ICopyBlock {
      * @return true to consume items (default), false to allow free copying
      */
     default boolean consumesItemsOnPlace() {
+        return ImitariConfig.CONSUMES_ITEMS_IN_SURVIVAL.get();
+    }
+
+    /**
+     * Whether shift+empty hand removes the copied block.
+     * In creative mode, this always works if allowCreativeRemoval() is true.
+     * In survival mode, this respects the config setting.
+     *
+     * @return true to allow removal in creative (default), false to disable
+     */
+    default boolean allowCreativeRemoval() {
         return true;
     }
 
     /**
-     * Whether shift+empty hand in creative mode removes the copied block.
+     * Whether shift+empty hand removes the copied block in survival mode.
      *
-     * @return true to allow removal (default), false to disable
+     * @return value from config
      */
-    default boolean allowCreativeRemoval() {
-        return true;
+    default boolean allowSurvivalRemoval() {
+        return ImitariConfig.ALLOW_SURVIVAL_REMOVAL.get();
     }
 
     // ==================== DELEGATION METHODS ====================
@@ -138,8 +150,8 @@ public interface ICopyBlock {
      * @return Explosion resistance value
      */
     default float copyblock$getExplosionResistance(BlockState state, BlockGetter level, BlockPos pos, Explosion explosion) {
-        if (!useDynamicPhysics()) {
-            return 3.0f;
+        if (!useDynamicPhysics() || !ImitariConfig.COPY_RESISTANCE.get()) {
+            return 0.5f; // Empty CopyBlock resistance
         }
 
         BlockEntity be = level.getBlockEntity(pos);
@@ -150,7 +162,7 @@ public interface ICopyBlock {
                 return baseResistance * getMassMultiplier();
             }
         }
-        return 3.0f;
+        return 0.5f; // Empty CopyBlock resistance
     }
 
     /**
@@ -160,8 +172,8 @@ public interface ICopyBlock {
      * @return Destroy progress value (0.0 to 1.0+)
      */
     default float copyblock$getDestroyProgress(BlockState state, Player player, BlockGetter level, BlockPos pos) {
-        if (!useDynamicPhysics()) {
-            return 1.0f;
+        if (!useDynamicPhysics() || !ImitariConfig.COPY_HARDNESS.get()) {
+            return 1.0f / 0.5f; // Empty CopyBlock hardness = 0.5
         }
 
         BlockEntity be = level.getBlockEntity(pos);
@@ -172,7 +184,7 @@ public interface ICopyBlock {
                 return baseProgress / getMassMultiplier();
             }
         }
-        return 1.0f;
+        return 1.0f / 0.5f; // Empty CopyBlock hardness = 0.5
     }
 
     /**
@@ -208,9 +220,12 @@ public interface ICopyBlock {
         ItemStack heldItem = player.getItemInHand(hand);
         BlockState currentCopied = copyBlockEntity.getCopiedBlock();
 
-        // Shift + empty hand (creative only) = remove copied block
-        if (allowCreativeRemoval() && player.isShiftKeyDown() && heldItem.isEmpty() &&
-                !currentCopied.isAir() && player.isCreative()) {
+        // Shift + empty hand = remove copied block
+        boolean canRemove = player.isShiftKeyDown() && heldItem.isEmpty() && !currentCopied.isAir();
+        boolean allowRemove = (player.isCreative() && allowCreativeRemoval()) ||
+                (!player.isCreative() && allowSurvivalRemoval());
+
+        if (canRemove && allowRemove) {
             copyBlockEntity.setCopiedBlock(Blocks.AIR.defaultBlockState());
             state.updateNeighbourShapes(level, pos, Block.UPDATE_ALL);
             level.updateNeighborsAt(pos, state.getBlock());
@@ -295,10 +310,6 @@ public interface ICopyBlock {
      * Call this from your Block's {@code onRemove()} override.
      *
      * IMPORTANT: This also notifies VS2 to subtract the correct mass!
-     */
-    /**
-     * Drop the copied block when broken (not in creative).
-     * Call this from your Block's {@code onRemove()} override.
      */
     default void copyblock$onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
         if (!state.is(newState.getBlock()) && !level.isClientSide) {
