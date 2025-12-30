@@ -1,16 +1,13 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "SPS",
-    "PGP",
-    "SPS"
+    "S S",
+    " G ",
+    "S S"
   ],
   "key": {
     "S": {
       "item": "minecraft:iron_nugget"
-    },
-    "P": {
-      "item": "minecraft:iron_ingot"
     },
     "G": {
       "item": "minecraft:glass"

@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "imitari:copy_block"
+  },
+  "result": "imitari:copy_block_ghost",
+  "count": 1
+}

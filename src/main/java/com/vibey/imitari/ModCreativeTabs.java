@@ -24,7 +24,6 @@ public class ModCreativeTabs {
                         output.accept(ModItems.COPY_BLOCK_SLAB.get());
                         output.accept(ModItems.COPY_BLOCK_STAIRS.get());
                         output.accept(ModItems.COPY_BLOCK_LAYER.get());
-                        output.accept(ModItems.DEBUG_TOOL.get());
                     })
                     .build());
 
