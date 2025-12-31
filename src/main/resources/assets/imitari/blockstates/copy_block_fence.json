@@ -1,7 +1,48 @@
 {
-  "variants": {
-    "": {
-      "model": "imitari:block/copy_block_fence_combined"
+  "multipart": [
+    {
+      "apply": {
+        "model": "imitari:block/copy_block_fence_post"
+      }
+    },
+    {
+      "when": {
+        "north": "true"
+      },
+      "apply": {
+        "model": "imitari:block/copy_block_fence_side",
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "east": "true"
+      },
+      "apply": {
+        "model": "imitari:block/copy_block_fence_side",
+        "y": 90,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "south": "true"
+      },
+      "apply": {
+        "model": "imitari:block/copy_block_fence_side",
+        "y": 180,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "west": "true"
+      },
+      "apply": {
+        "model": "imitari:block/copy_block_fence_side",
+        "y": 270,
+        "uvlock": true
+      }
     }
-  }
+  ]
 }

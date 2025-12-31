@@ -19,6 +19,13 @@ public class CopyBlockModelProvider {
 
     private static final Set<ResourceLocation> REGISTERED_BLOCKS = new HashSet<>();
 
+    // Multipart sub-models that need special handling
+    private static final Set<String> MULTIPART_MODELS = Set.of(
+            "fence_post", "fence_side",
+            "wall_post", "wall_side", "wall_side_tall",
+            "pane_post", "pane_side", "pane_side_alt", "pane_noside", "pane_noside_alt"
+    );
+
     public static void registerBlock(ResourceLocation blockId) {
         REGISTERED_BLOCKS.add(blockId);
     }
@@ -43,28 +50,40 @@ public class CopyBlockModelProvider {
 
     public static void onModelBake(ModelEvent.ModifyBakingResult event) {
         Map<ResourceLocation, BakedModel> modelRegistry = event.getModels();
+        int wrappedCount = 0;
 
         for (Map.Entry<ResourceLocation, BakedModel> entry : modelRegistry.entrySet()) {
             ResourceLocation modelId = entry.getKey();
             BakedModel existingModel = entry.getValue();
 
             // Skip if already wrapped
-            if (existingModel instanceof CopyBlockModel) {
+            if (existingModel instanceof CopyBlockModel || existingModel instanceof MultipartCopyBlockModel) {
                 continue;
             }
 
-            // Check if this model should be wrapped
-            boolean shouldWrap = false;
             String path = modelId.getPath();
+            boolean shouldWrap = false;
+            boolean isMultipart = false;
 
-            // Simple pattern matching for Imitari CopyBlocks
-            if (modelId.getNamespace().equals("imitari") &&
-                (path.startsWith("block/copy_block_") ||
-                 path.equals("item/copy_block"))) {
+            // Check if this is an Imitari copy_block model
+            if (modelId.getNamespace().equals("imitari") && path.startsWith("block/copy_block")) {
+                shouldWrap = true;
+
+                // Check if it's a multipart sub-model
+                for (String multipartSuffix : MULTIPART_MODELS) {
+                    if (path.endsWith(multipartSuffix)) {
+                        isMultipart = true;
+                        break;
+                    }
+                }
+            }
+
+            // Also match item models
+            if (modelId.getNamespace().equals("imitari") && path.startsWith("item/copy_block")) {
                 shouldWrap = true;
             }
 
-            // Also check registered blocks for addon compatibility
+            // Check registered blocks for addon compatibility
             if (!shouldWrap) {
                 for (ResourceLocation blockId : REGISTERED_BLOCKS) {
                     if (!modelId.getNamespace().equals(blockId.getNamespace())) {
@@ -73,21 +92,38 @@ public class CopyBlockModelProvider {
 
                     String blockName = blockId.getPath();
 
-                    // Match block models and their variants/sub-models
                     if (path.equals("block/" + blockName) ||
                             path.equals(blockName) ||
                             path.startsWith("block/" + blockName + "_")) {
                         shouldWrap = true;
+
+                        // Check if it's a multipart model
+                        for (String multipartSuffix : MULTIPART_MODELS) {
+                            if (path.endsWith(multipartSuffix)) {
+                                isMultipart = true;
+                                break;
+                            }
+                        }
                         break;
                     }
                 }
             }
 
             if (shouldWrap) {
-                CopyBlockModel wrappedModel = new CopyBlockModel(existingModel);
+                BakedModel wrappedModel;
+                if (isMultipart) {
+                    // Use special multipart wrapper
+                    wrappedModel = new MultipartCopyBlockModel(existingModel);
+                } else {
+                    // Use regular wrapper
+                    wrappedModel = new CopyBlockModel(existingModel);
+                }
                 modelRegistry.put(modelId, wrappedModel);
+                wrappedCount++;
             }
         }
+
+        System.out.println("[Imitari] Wrapped " + wrappedCount + " CopyBlock models (including multipart sub-models)");
     }
 
     public static Set<ResourceLocation> getRegisteredBlocks() {
