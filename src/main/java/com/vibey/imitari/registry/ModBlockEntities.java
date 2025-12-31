@@ -19,7 +19,19 @@ public class ModBlockEntities {
                             ModBlocks.COPY_BLOCK_GHOST.get(),
                             ModBlocks.COPY_BLOCK_SLAB.get(),
                             ModBlocks.COPY_BLOCK_STAIRS.get(),
-                            ModBlocks.COPY_BLOCK_LAYER.get()
+                            ModBlocks.COPY_BLOCK_LAYER.get(),
+                            ModBlocks.COPY_BLOCK_FENCE.get(),
+                            ModBlocks.COPY_BLOCK_FENCE_GATE.get(),
+                            ModBlocks.COPY_BLOCK_WALL.get(),
+                            ModBlocks.COPY_BLOCK_DOOR.get(),
+                            ModBlocks.COPY_BLOCK_IRON_DOOR.get(),
+                            ModBlocks.COPY_BLOCK_BUTTON.get(),
+                            ModBlocks.COPY_BLOCK_LEVER.get(),
+                            ModBlocks.COPY_BLOCK_TRAPDOOR.get(),
+                            ModBlocks.COPY_BLOCK_IRON_TRAPDOOR.get(),
+                            ModBlocks.COPY_BLOCK_PANE.get(),
+                            ModBlocks.COPY_BLOCK_PRESSURE_PLATE.get(),
+                            ModBlocks.COPY_BLOCK_LADDER.get()
                     ).build(null));
 
     public static void register(IEventBus eventBus) {

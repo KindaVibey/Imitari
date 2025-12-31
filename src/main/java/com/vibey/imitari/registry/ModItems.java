@@ -33,6 +33,48 @@ public class ModItems {
     public static final RegistryObject<Item> DEBUG_TOOL = ITEMS.register("debug_tool",
             () -> new DebugToolItem(new Item.Properties()));
 
+    // Fence variants
+    public static final RegistryObject<Item> COPY_BLOCK_FENCE = ITEMS.register("copy_block_fence",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_FENCE.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> COPY_BLOCK_FENCE_GATE = ITEMS.register("copy_block_fence_gate",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_FENCE_GATE.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> COPY_BLOCK_WALL = ITEMS.register("copy_block_wall",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_WALL.get(), new Item.Properties()));
+
+    // Door variants
+    public static final RegistryObject<Item> COPY_BLOCK_DOOR = ITEMS.register("copy_block_door",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_DOOR.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> COPY_BLOCK_IRON_DOOR = ITEMS.register("copy_block_iron_door",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_IRON_DOOR.get(), new Item.Properties()));
+
+    // Trapdoor variants
+    public static final RegistryObject<Item> COPY_BLOCK_TRAPDOOR = ITEMS.register("copy_block_trapdoor",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_TRAPDOOR.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> COPY_BLOCK_IRON_TRAPDOOR = ITEMS.register("copy_block_iron_trapdoor",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_IRON_TRAPDOOR.get(), new Item.Properties()));
+
+    // Pane
+    public static final RegistryObject<Item> COPY_BLOCK_PANE = ITEMS.register("copy_block_pane",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_PANE.get(), new Item.Properties()));
+
+    // Button/Lever/Pressure Plate
+    public static final RegistryObject<Item> COPY_BLOCK_BUTTON = ITEMS.register("copy_block_button",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_BUTTON.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> COPY_BLOCK_LEVER = ITEMS.register("copy_block_lever",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_LEVER.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> COPY_BLOCK_PRESSURE_PLATE = ITEMS.register("copy_block_pressure_plate",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_PRESSURE_PLATE.get(), new Item.Properties()));
+
+    // Ladder
+    public static final RegistryObject<Item> COPY_BLOCK_LADDER = ITEMS.register("copy_block_ladder",
+            () -> new BlockItem(ModBlocks.COPY_BLOCK_LADDER.get(), new Item.Properties()));
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

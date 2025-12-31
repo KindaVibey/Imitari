@@ -100,41 +100,41 @@ public class Imitari {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
             event.enqueueWork(() -> {
-                // Allow both cutout and translucent render types for all CopyBlocks
-                ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK.get(),
-                        rt -> rt == RenderType.cutout() || rt == RenderType.translucent());
-                ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK_GHOST.get(),
-                        rt -> rt == RenderType.cutout() || rt == RenderType.translucent());
-                ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK_SLAB.get(),
-                        rt -> rt == RenderType.cutout() || rt == RenderType.translucent());
-                ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK_STAIRS.get(),
-                        rt -> rt == RenderType.cutout() || rt == RenderType.translucent());
-                ItemBlockRenderTypes.setRenderLayer(ModBlocks.COPY_BLOCK_LAYER.get(),
-                        rt -> rt == RenderType.cutout() || rt == RenderType.translucent());
 
                 Minecraft minecraft = Minecraft.getInstance();
                 var blockColors = minecraft.getBlockColors();
 
                 ArrayList<Block> copyBlocks = new ArrayList<>();
+
                 for (Block block : ForgeRegistries.BLOCKS.getValues()) {
                     if (block instanceof ICopyBlock) {
                         copyBlocks.add(block);
+
+                        // Render layer: allow cutout + translucent
+                        ItemBlockRenderTypes.setRenderLayer(
+                                block,
+                                rt -> rt == RenderType.cutout() || rt == RenderType.translucent()
+                        );
                     }
                 }
 
+                // Color handler
                 if (!copyBlocks.isEmpty()) {
                     blockColors.register((state, level, pos, tintIndex) -> {
                         if (level == null || pos == null) {
                             return -1;
                         }
+
                         BlockState copiedState = CopyBlockAPI.getCopiedBlock(level, pos);
                         if (copiedState == null) {
                             return -1;
                         }
+
                         return blockColors.getColor(copiedState, level, pos, tintIndex);
                     }, copyBlocks.toArray(Block[]::new));
                 }
             });
         }
     }
+
 }

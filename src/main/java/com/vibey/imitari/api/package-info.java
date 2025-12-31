@@ -73,7 +73,7 @@
  * @see com.vibey.imitari.api.CopyBlockAPI
  * @see com.vibey.imitari.block.base.CopyBlockBase
  *
- * @author Vibey
- * @version 2.0.0
+ * @author KindaVibey
+ * @version 0.1.0
  */
 package com.vibey.imitari.api;

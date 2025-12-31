@@ -238,7 +238,6 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
         BlockPos pos = context.getClickedPos();
         BlockState existingState = context.getLevel().getBlockState(pos);
         Direction clickedFace = context.getClickedFace();
-        Player player = context.getPlayer();
 
         // If clicking on existing layer, try to add layers
         if (existingState.is(this)) {
@@ -269,29 +268,8 @@ public class CopyBlockLayer extends Block implements EntityBlock, ICopyBlock {
             }
         }
 
-        // New placement logic (mix of clicked face and player look angle)
-        Direction facing = clickedFace;
-        if (player != null) {
-            float pitch = player.getXRot();
-            Direction horizontalFacing = context.getHorizontalDirection();
-
-            if (clickedFace.getAxis().isVertical()) {
-                if (Math.abs(pitch) < 45) {
-                    facing = horizontalFacing.getOpposite();
-                }
-            } else {
-                if (Math.abs(pitch) > 45) {
-                    facing = pitch > 0 ? Direction.DOWN : Direction.UP;
-                } else {
-                    Direction clickedAxis = clickedFace.getAxis() == Direction.Axis.X ?
-                            (horizontalFacing.getAxis() == Direction.Axis.Z ? horizontalFacing.getOpposite() : clickedFace) :
-                            (horizontalFacing.getAxis() == Direction.Axis.X ? horizontalFacing.getOpposite() : clickedFace);
-                    facing = clickedAxis;
-                }
-            }
-        }
-
-        return this.defaultBlockState().setValue(FACING, facing);
+        // Use Create's placement logic: face the direction the player is looking
+        return this.defaultBlockState().setValue(FACING, context.getNearestLookingDirection().getOpposite());
     }
 
     @Override

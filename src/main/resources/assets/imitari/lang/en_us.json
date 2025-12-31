@@ -4,5 +4,17 @@
   "block.imitari.copy_block_ghost": "Copy Block Ghost",
   "block.imitari.copy_block_slab": "Copy Block Slab",
   "block.imitari.copy_block_stairs": "Copy Block Stairs",
-  "block.imitari.copy_block_layer": "Copy Block Layer"
+  "block.imitari.copy_block_layer": "Copy Block Layer",
+  "block.imitari.copy_block_fence": "Copy Block Fence",
+  "block.imitari.copy_block_fence_gate": "Copy Block Fence Gate",
+  "block.imitari.copy_block_wall": "Copy Block Wall",
+  "block.imitari.copy_block_door": "Copy Block Door",
+  "block.imitari.copy_block_iron_door": "Copy Block Iron Door",
+  "block.imitari.copy_block_trapdoor": "Copy Block Trapdoor",
+  "block.imitari.copy_block_iron_trapdoor": "Copy Block Iron Trapdoor",
+  "block.imitari.copy_block_pane": "Copy Block Pane",
+  "block.imitari.copy_block_button": "Copy Block Button",
+  "block.imitari.copy_block_lever": "Copy Block Lever",
+  "block.imitari.copy_block_pressure_plate": "Copy Block Pressure Plate",
+  "block.imitari.copy_block_ladder": "Copy Block Ladder"
 }

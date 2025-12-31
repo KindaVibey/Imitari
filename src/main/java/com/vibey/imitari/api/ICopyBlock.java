@@ -27,21 +27,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Core interface for blocks that can copy and mimic other blocks.
  *
- * <p><b>Quick Start for Addon Developers:</b></p>
- * <pre>{@code
- * public class MyCustomCopyBlock extends Block implements ICopyBlock {
- *     public MyCustomCopyBlock(Properties props) {
- *         super(props);
- *     }
- *
- *     @Override
- *     public float getMassMultiplier() {
- *         return 0.5f; // Half mass (like a slab)
- *     }
- *
- *     // That's it! Everything else is handled automatically.
- * }
- * }</pre>
+ * </pre>
  *
  * <p><b>Features Provided:</b></p>
  * <ul>
@@ -64,6 +50,7 @@ import org.jetbrains.annotations.Nullable;
  *   <li>0.125f = 1/8 layer</li>
  * </ul>
  *
+ * @see CopyBlockTemplate
  * @see ICopyBlockEntity
  * @see CopyBlockAPI
  */
