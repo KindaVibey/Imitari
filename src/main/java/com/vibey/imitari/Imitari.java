@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ModelEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -60,9 +61,6 @@ public class Imitari {
         ModItems.register(modEventBus);
         ModBlockEntities.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
-
-        // Register model provider for client rendering
-        modEventBus.addListener(CopyBlockModelProvider::onModelBake);
 
         // Forge event bus
         MinecraftForge.EVENT_BUS.register(this);
@@ -134,6 +132,11 @@ public class Imitari {
                     }, copyBlocks.toArray(Block[]::new));
                 }
             });
+        }
+
+        @SubscribeEvent
+        public static void onModelBake(ModelEvent.ModifyBakingResult event) {
+            CopyBlockModelProvider.onModelBake(event);
         }
     }
 

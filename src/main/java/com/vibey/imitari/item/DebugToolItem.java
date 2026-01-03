@@ -1,5 +1,6 @@
 package com.vibey.imitari.item;
 
+import com.vibey.imitari.util.CopyBlockContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -53,27 +54,11 @@ public class DebugToolItem extends Item {
             context.getPlayer().sendSystemMessage(Component.literal("Layers: " + layers));
         }
 
-        // Check if it has copied block
-        var be = context.getLevel().getBlockEntity(pos);
-        if (be instanceof com.vibey.imitari.blockentity.CopyBlockEntity copyBE) {
-            BlockState copiedState = copyBE.getCopiedBlock();
-            if (!copiedState.isAir()) {
-                context.getPlayer().sendSystemMessage(Component.literal("Copied Block: " + copiedState.getBlock().getName().getString()));
+        // Display all tags this block has (will use dynamic tag system if CopyBlock)
+        context.getPlayer().sendSystemMessage(Component.literal("=== Tags ==="));
 
-                float copiedResistance = copiedState.getBlock().getExplosionResistance();
-                float copiedSpeed = copiedState.getDestroySpeed(context.getLevel(), pos);
-
-                context.getPlayer().sendSystemMessage(Component.literal("Copied Explosion Resistance: " + copiedResistance));
-                context.getPlayer().sendSystemMessage(Component.literal("Copied Destroy Speed: " + copiedSpeed));
-
-                // NEW: Show copied block's tags too
-                context.getPlayer().sendSystemMessage(Component.literal("=== Copied Block Tags ==="));
-                displayBlockTags(context, copiedState);
-            }
-        }
-
-        // NEW: Display all tags this block has
-        context.getPlayer().sendSystemMessage(Component.literal("=== Block Tags ==="));
+        // Note: Context is already set by getBlockState above, and our optimized
+        // system allows multiple tag checks without popping context
         displayBlockTags(context, state);
 
         return InteractionResult.SUCCESS;
@@ -108,6 +93,8 @@ public class DebugToolItem extends Item {
             // Get all tag keys from the registry
             blockRegistry.getTagNames().forEach(tagKey -> {
                 // Check if this block state has this tag
+                // NOTE: This will trigger our mixin if state is a CopyBlock
+                // Our optimized system allows multiple checks without popping context!
                 if (state.is(tagKey)) {
                     tags.add(tagKey.location().toString());
                 }

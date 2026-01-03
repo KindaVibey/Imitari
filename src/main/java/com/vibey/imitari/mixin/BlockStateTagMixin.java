@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -16,8 +17,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.List;
 
 /**
- * The ONLY mixin needed for dynamic tags.
- * Zero-overhead implementation using cached context.
+ * Optimized dynamic tag checking for CopyBlocks.
+ *
+ * Performance optimizations:
+ * - Early exit for non-CopyBlocks (99% of blocks)
+ * - Cached blacklist check results
+ * - No premature context cleanup (allows multiple tag checks)
  */
 @Mixin(BlockBehaviour.BlockStateBase.class)
 public abstract class BlockStateTagMixin {
@@ -25,23 +30,33 @@ public abstract class BlockStateTagMixin {
     @Shadow
     public abstract Block getBlock();
 
+    // Cache for blacklist lookups (tag checks happen in hot loops)
+    @Unique
+    private static volatile List<? extends String> imitari$cachedBlacklist = null;
+
     /**
      * Inject at HEAD of is(TagKey) to check CopyBlock's copied block tags.
      */
     @Inject(method = "is(Lnet/minecraft/tags/TagKey;)Z", at = @At("HEAD"), cancellable = true)
     private void imitari$checkCopiedTags(TagKey<Block> tag, CallbackInfoReturnable<Boolean> cir) {
-        // CRITICAL: Only process if this implements ICopyBlock
         Block block = this.getBlock();
-        if (!(block instanceof ICopyBlock copyBlock) || !copyBlock.useDynamicTags()) {
+
+        // Fast path: Early exit for non-CopyBlocks (99% of cases)
+        if (!(block instanceof ICopyBlock copyBlock)) {
+            return;
+        }
+
+        // Check if dynamic tags are enabled for this block
+        if (!copyBlock.useDynamicTags()) {
             return;
         }
 
         // Check if this tag is blacklisted
-        if (isTagBlacklisted(tag)) {
+        if (imitari$isTagBlacklisted(tag)) {
             return; // Don't inherit blacklisted tags
         }
 
-        // Try to get the copied block's tags using our cached context
+        // Try to get the copied block's tags using our optimized context system
         Boolean result = CopyBlockContext.checkCopiedBlockTag(tag);
 
         // If we got a result, use it. Otherwise, let vanilla behavior continue.
@@ -50,9 +65,16 @@ public abstract class BlockStateTagMixin {
         }
     }
 
-    private boolean isTagBlacklisted(TagKey<Block> tag) {
+    @Unique
+    private boolean imitari$isTagBlacklisted(TagKey<Block> tag) {
         try {
-            List<? extends String> blacklist = ImitariConfig.TAG_BLACKLIST.get();
+            // Use cached blacklist to avoid repeated config lookups
+            List<? extends String> blacklist = imitari$cachedBlacklist;
+            if (blacklist == null) {
+                blacklist = ImitariConfig.TAG_BLACKLIST.get();
+                imitari$cachedBlacklist = blacklist;
+            }
+
             if (blacklist.isEmpty()) {
                 return false;
             }
@@ -60,6 +82,7 @@ public abstract class BlockStateTagMixin {
             ResourceLocation tagLocation = tag.location();
             String tagString = tagLocation.toString();
 
+            // Linear search is fine - blacklists are typically very small (< 10 entries)
             for (String blacklistedTag : blacklist) {
                 if (tagString.equals(blacklistedTag)) {
                     return true;
@@ -67,6 +90,7 @@ public abstract class BlockStateTagMixin {
             }
         } catch (Exception e) {
             // Config not loaded yet or error - allow all tags
+            imitari$cachedBlacklist = null;
         }
 
         return false;

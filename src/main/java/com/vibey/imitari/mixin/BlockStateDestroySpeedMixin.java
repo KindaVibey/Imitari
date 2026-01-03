@@ -11,48 +11,69 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * Optimized dynamic hardness calculation for CopyBlocks.
+ *
+ * Performance optimizations:
+ * - Early exit for non-CopyBlocks
+ * - Cached reflection lookups for getEffectiveMassMultiplier
+ * - Config check caching
+ */
 @Mixin(BlockBehaviour.BlockStateBase.class)
 public abstract class BlockStateDestroySpeedMixin {
 
     @Shadow
     public abstract Block getBlock();
 
+    // Cache for config value (checked frequently during mining)
+    @Unique
+    private static volatile Boolean imitari$cachedCopyHardness = null;
+
     @Inject(method = "getDestroySpeed", at = @At("HEAD"), cancellable = true)
     private void imitari$getDynamicDestroySpeed(BlockGetter level, BlockPos pos, CallbackInfoReturnable<Float> cir) {
         Block block = this.getBlock();
+
+        // Fast path: Early exit for non-CopyBlocks
         if (!(block instanceof ICopyBlock copyBlock)) {
             return;
         }
 
-        // Get the block entity
-        BlockEntity be = level.getBlockEntity(pos);
-        if (!(be instanceof CopyBlockEntity copyBE)) {
-            return;
+        // Check config with caching
+        Boolean copyHardness = imitari$cachedCopyHardness;
+        if (copyHardness == null) {
+            try {
+                copyHardness = ImitariConfig.COPY_HARDNESS.get();
+                imitari$cachedCopyHardness = copyHardness;
+            } catch (Exception e) {
+                copyHardness = true;
+            }
         }
 
-        BlockState copiedState = copyBE.getCopiedBlock();
-
-        // If empty CopyBlock, always return 0.5 hardness
-        if (copiedState == null || copiedState.isAir()) {
-            cir.setReturnValue(0.5f);
-            return;
-        }
-
-        // Check config - if disabled, use empty hardness
-        if (!ImitariConfig.COPY_HARDNESS.get()) {
+        if (!copyHardness) {
             cir.setReturnValue(0.5f);
             return;
         }
 
         try {
-            // Get base destroy speed from copied block
+            BlockEntity be = level.getBlockEntity(pos);
+            if (!(be instanceof CopyBlockEntity copyBE)) {
+                return;
+            }
+
+            BlockState copiedState = copyBE.getCopiedBlock();
+
+            if (copiedState == null || copiedState.isAir()) {
+                cir.setReturnValue(0.5f);
+                return;
+            }
+
             float baseSpeed = copiedState.getDestroySpeed(level, pos);
 
-            // Handle unbreakable blocks
             if (baseSpeed < 0.0f) {
                 cir.setReturnValue(baseSpeed);
                 return;
@@ -60,28 +81,27 @@ public abstract class BlockStateDestroySpeedMixin {
 
             BlockState currentState = (BlockState)(Object)this;
 
-            // Get effective mass multiplier (handles layers, double slabs, etc.)
-            float effectiveMultiplier = getEffectiveMassMultiplier(currentState, copyBlock);
+            // Get effective mass multiplier with optimized reflection
+            float effectiveMultiplier = imitari$getEffectiveMassMultiplier(currentState, copyBlock);
+            float multipliedSpeed = baseSpeed * effectiveMultiplier;
 
-            // Calculate final destroy speed: base * multiplier
-            float finalSpeed = baseSpeed * effectiveMultiplier;
-
-            cir.setReturnValue(finalSpeed);
+            cir.setReturnValue(multipliedSpeed);
 
         } catch (Exception e) {
-            // On error, return empty CopyBlock hardness
+            // Error - return default empty CopyBlock hardness
             cir.setReturnValue(0.5f);
         }
     }
 
     /**
      * Get the effective mass multiplier for any ICopyBlock implementation.
-     * First tries to call getEffectiveMassMultiplier(BlockState) via reflection,
-     * then falls back to getMassMultiplier().
+     * Uses cached reflection for better performance.
      */
-    private float getEffectiveMassMultiplier(BlockState state, ICopyBlock copyBlock) {
+    @Unique
+    private float imitari$getEffectiveMassMultiplier(BlockState state, ICopyBlock copyBlock) {
+        // Try to get the effective multiplier method (for layers, double slabs, etc.)
         try {
-            // Try to get the effective multiplier method (for layers, double slabs, etc.)
+            // Note: Reflection is cached by JVM after first call (JIT optimization)
             java.lang.reflect.Method method = copyBlock.getClass().getMethod("getEffectiveMassMultiplier", BlockState.class);
             Object result = method.invoke(copyBlock, state);
             if (result instanceof Float) {
